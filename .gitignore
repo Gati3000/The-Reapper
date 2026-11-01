@@ -221,3 +221,7 @@ __marimo__/
 
 User/*
 !User/.gitkeep
+firstrun
+wrapper/
+bento4/
+apple-music-downloader/
