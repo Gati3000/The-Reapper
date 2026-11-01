@@ -161,9 +161,16 @@ def ensure_go():
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=120) as resp, open(tmp, "wb") as out:
             shutil.copyfileobj(resp, out)
-        shutil.rmtree(GO_ROOT, ignore_errors=True)
-        with tarfile.open(tmp, "r:gz") as tar:
-            tar.extractall("/usr/local")
+        staging = Path(tempfile.mkdtemp(prefix="go-new-", dir=GO_ROOT.parent))
+        try:
+            with tarfile.open(tmp, "r:gz") as tar:
+                tar.extractall(staging)
+            if not (staging / "go" / "bin" / "go").exists():
+                raise RuntimeError("downloaded archive has no go/bin/go")
+            shutil.rmtree(GO_ROOT, ignore_errors=True)
+            (staging / "go").rename(GO_ROOT)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
         print(f"INFO: Updated {latest}")
         return True
     except Exception as e:
@@ -305,8 +312,7 @@ def firstsetup():
                 print(f"DEBUG: Bin directory exists: {bin_dir.exists()}")
 
                 if not bin_dir.exists():
-                    print(f"ERROR: Bin directory does not exist: {bin_dir}")
-                    return
+                    raise RuntimeError(f"Bento4 bin directory does not exist: {bin_dir}")
                     
                 all_files = list(bin_dir.glob("*"))
                 print(f"DEBUG: All files in bin: {[f.name for f in all_files]}")
@@ -445,7 +451,7 @@ def firstsetup():
 
         print("First setup complete!")
 
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
         print(f"ERROR: Failed during setup: {e}")
         sys.exit(1)
 
@@ -464,17 +470,33 @@ def start():
         print("ERROR: ffmpeg is required. Exiting...")
         sys.exit(1)
     ensure_go()
+    ensure_downloader_compat()
 
-    # Import and run the Flask app
-    from app import app 
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    # Import and run the Flask app (app.py may live in the project root or in App/)
+    for d in (PROJECT_DIR, PROJECT_DIR / "App"):
+        if str(d) not in sys.path:
+            sys.path.insert(0, str(d))
+    try:
+        from app import app
+    except ImportError as e:
+        print(f"ERROR: Could not import the web UI (app.py): {e}")
+        print(f"       Put app.py in {PROJECT_DIR} or {PROJECT_DIR / 'App'}")
+        sys.exit(1)
 
-# First run check
-marker_file = PROJECT_DIR / "firstrun"
+    # Default keeps LAN access (LXC); set REAPPER_HOST=127.0.0.1 to restrict
+    host = os.environ.get("REAPPER_HOST", "0.0.0.0")
+    port = int(os.environ.get("REAPPER_PORT", "5000"))
+    app.run(host=host, port=port, debug=False)
 
-if not marker_file.exists():
-    firstsetup()
-    with open(marker_file, "w") as f:
-        f.write("This file marks that first setup has been completed.\n")
+def main():
+    # First run check
+    marker_file = PROJECT_DIR / "firstrun"
+    if not marker_file.exists():
+        firstsetup()
+        with open(marker_file, "w") as f:
+            f.write("This file marks that first setup has been completed.\n")
+    start()
 
-start()
+
+if __name__ == "__main__":
+    main()
