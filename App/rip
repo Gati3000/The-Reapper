@@ -1,0 +1,13 @@
+#!/bin/bash
+# Katalog projektu = katalog nadrzędny względem App/ (działa też przez symlink)
+DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
+
+case "$1" in
+  -up)
+    cd "$DIR" && exec python3 Main.py
+    ;;
+  *)
+    echo "Użycie: rip -up"
+    exit 1
+    ;;
+esac

@@ -477,7 +477,7 @@ def start():
         if str(d) not in sys.path:
             sys.path.insert(0, str(d))
     try:
-        from app import app
+        from App import app
     except ImportError as e:
         print(f"ERROR: Could not import the web UI (app.py): {e}")
         print(f"       Put app.py in {PROJECT_DIR} or {PROJECT_DIR / 'App'}")
