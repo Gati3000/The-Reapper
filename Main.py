@@ -16,7 +16,7 @@ BENTO4_DIR = PROJECT_DIR / "bento4"
 WRAPPER_DIR = PROJECT_DIR / "wrapper"
 AMD_DIR = PROJECT_DIR / "apple-music-downloader"
 GO_ROOT = Path("/usr/local/go")
-MANIFEST_FILE = Path("/App/Manifest.ini")
+MANIFEST_FILE = PROJECT_DIR / "App" / "Manifest.ini"
 MANIFEST_SECTION = "manifest"
 
 # Fallback values, used when Manifest.ini is gone
