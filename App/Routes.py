@@ -7,6 +7,7 @@ import os
 import json
 import base64
 from . import app
+from .Launcher import Start
 
 wrapper_process = None
 wrapper_running = False
@@ -15,8 +16,11 @@ download_process = None
 download_running = False
 DEFAULT_PREFS = {"special_audio": True, "format": "ATMOS"}
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-USER_DIR = os.path.join(os.path.dirname(PROJECT_DIR), "The Reaper", "User")
+PROJECT_DIR = str(Start.PROJECT_DIR)
+USER_DIR = str(Start.USER_DIR)
+AMD_DIR = str(Start.AMD_DIR)
+WRAPPER_DIR = str(Start.WRAPPER_DIR)
+CONFIG_PATH = str(Start.CONFIG_FILE)
 
 
 def stream_download_logs(pipe, target_list):
@@ -98,8 +102,7 @@ downloader_logs = []
 
 def get_credentials_path():
     """Get the path to the credentials file"""
-    script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(script_dir, ".credentials")
+    return str(Start.CREDENTIALS_FILE)
 
 def save_credentials(email, password):
     """Save credentials to file (base64 encoded for basic obfuscation)"""
@@ -108,8 +111,11 @@ def save_credentials(email, password):
             "email": base64.b64encode(email.encode()).decode(),
             "password": base64.b64encode(password.encode()).decode()
         }
-        with open(get_credentials_path(), 'w') as f:
+        os.makedirs(USER_DIR, exist_ok=True)
+        path = get_credentials_path()
+        with open(path, 'w') as f:
             json.dump(credentials, f)
+        os.chmod(path, 0o600)
         return True
     except Exception as e:
         print(f"Error saving credentials: {e}")
@@ -162,12 +168,11 @@ def start_wrapper_login(email, password, auto_login=False):
     
     prefix = "Auto-login: " if auto_login else ""
     wrapper_logs.append(f"{prefix}Starting wrapper login for {email}...")
-    script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    wrapper_dir = os.path.join(script_dir, "wrapper")
+    wrapper_dir = WRAPPER_DIR
     wrapper_path = os.path.join(wrapper_dir, "wrapper")
     
     cmd = [wrapper_path, "-L", f"{email}:{password}"]
-    wrapper_logs.append(f"{prefix}Executing: {' '.join(cmd)}")
+    wrapper_logs.append(f"{prefix}Executing: {wrapper_path} -L {email}:********")
     wrapper_logs.append(f"{prefix}Working directory: {wrapper_dir}")
     
     try:
@@ -200,7 +205,7 @@ def index():
     if email and password and not wrapper_running and (not wrapper_process or wrapper_process.poll() is not None):
         threading.Thread(target=attempt_auto_login, daemon=True).start()
     
-    return render_template("index.html", wrapper_running=wrapper_running, has_saved_credentials=email is not None, saved_email=email if email else "")
+    return render_template("Home.html", wrapper_running=wrapper_running, has_saved_credentials=email is not None, saved_email=email if email else "")
 
 
 @app.route("/login_wrapper", methods=["POST"])
@@ -238,7 +243,7 @@ def submit_2fa():
         wrapper_needs_2fa = False
         return jsonify({"status": "ok", "msg": "2FA code submitted"})
     except Exception as e:
-        wrapper_logs.append(f"❌ Error submitting 2FA code: {str(e)}")
+        wrapper_logs.append(f"Error submitting 2FA code: {str(e)}")
         return jsonify({"status": "error", "msg": f"Failed to submit 2FA code: {str(e)}"})
 
 
@@ -258,8 +263,7 @@ def download():
     
     if not link:
         return jsonify({"status": "error", "msg": "No URL provided"})
-    script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    amd_dir = os.path.join(script_dir, "apple-music-downloader")
+    amd_dir = AMD_DIR
     
     if special_audio:
         if format_choice == "ATMOS":
@@ -332,13 +336,13 @@ def stop_wrapper():
 
 @app.route("/settings")
 def settings():
-    return render_template("settings.html")
+    return render_template("Settings.html")
 
 @app.route("/get_config")
 def get_config():
     try:
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        config_path = os.path.join(script_dir, "apple-music-downloader", "config.yaml")
+        Start.prepare_user_data()
+        config_path = CONFIG_PATH
         
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
@@ -349,8 +353,7 @@ def get_config():
 @app.route("/save_config", methods=["POST"])
 def save_config():
     try:
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        config_path = os.path.join(script_dir, "apple-music-downloader", "config.yaml")
+        config_path = CONFIG_PATH
         
         config_data = request.json
 
@@ -401,7 +404,8 @@ def save_config():
                 config_data[key] = translate_path_to_wsl(str(value))
         
         with open(config_path, 'w', encoding='utf-8') as file:
-            yaml.dump(config_data, file, default_flow_style=False, allow_unicode=True)
+            yaml.dump(config_data, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        Start.link_config()
             
         return jsonify({"status": "ok", "msg": "Configuration saved successfully"})
     except Exception as e:
@@ -433,15 +437,14 @@ def auto_login():
 def get_download_folders():
     """Get download folder paths from config with Windows to WSL path translation"""
     try:
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        config_path = os.path.join(script_dir, "apple-music-downloader", "config.yaml")
+        config_path = CONFIG_PATH
         
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
         folders = {
-            "alac": config.get("alac-save-folder", "AM-DL downloads"),
-            "atmos": config.get("atmos-save-folder", "AM-DL-Atmos downloads"),
-            "aac": config.get("aac-save-folder", "AM-DL-AAC downloads")
+            "alac": config.get("alac-save-folder", "Downloads/ALAC"),
+            "atmos": config.get("atmos-save-folder", "Downloads/Atmos"),
+            "aac": config.get("aac-save-folder", "Downloads/AAC")
         }
         
         return jsonify({"status": "ok", "folders": folders})
