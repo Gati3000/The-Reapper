@@ -2,29 +2,29 @@ media-user-token: "your-media-user-token"   # Required for lyrics and AAC-LC. Pa
 authorization-token: "your-authorization-token"   # Leave as is, it is obtained automatically
 language: ""   # Metadata language, empty uses the storefront default
 lrc-type: "lyrics"   #lyrics or syllable-lyrics
-lrc-format: "lrc"   #lrc or ttml
-embed-lrc: true
-save-lrc-file: false
+lrc-format: "lrc"   
+embed-lrc: false
+save-lrc-file: true
 save-artist-cover: true
 save-animated-artwork: false    # If enabled, requires ffmpeg
 emby-animated-artwork: false    # If enabled, requires ffmpeg
 embed-cover: true
-cover-size: 3000x3000
-cover-format: jpg       #jpg png or original
+cover-size: 5000x5000
+cover-format: jpg       #jpg or png 
 tag-sort-order: true
 tag-itunes-id: true
 alac-save-folder: Downloads/ALAC
 atmos-save-folder: Downloads/Atmos
 aac-save-folder: Downloads/AAC
 mv-save-folder: Downloads/MV
-max-memory-limit: 256 # MB
+max-memory-limit: 256 #  In MB
 template-decrypt: false
 key-server: "127.0.0.1:40020"   #for Wrapper-lite '127.0.0.1:12340/key'
 decrypt-m3u8-port: "127.0.0.1:10020"
 get-m3u8-port: "127.0.0.1:20020"
 get-m3u8-from-device: true
 get-account-port: "127.0.0.1:30020"
-get-account-from-device: false   #if set true,will auto get media-user-token
+get-account-from-device: true   #if set false, won't auto get media-user-token
 
 # Exit on error instead of waiting for input. Keep true when running from the web UI.
 exit-on-error: true
