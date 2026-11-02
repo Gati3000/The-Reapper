@@ -6,6 +6,7 @@ import yaml
 import os
 import json
 import base64
+import re
 from . import app
 from .Launcher import Start
 
@@ -21,11 +22,88 @@ USER_DIR = str(Start.USER_DIR)
 AMD_DIR = str(Start.AMD_DIR)
 WRAPPER_DIR = str(Start.WRAPPER_DIR)
 CONFIG_PATH = str(Start.CONFIG_FILE)
+AUTH_ERROR_PATTERNS = [
+    (re.compile(r"(wrong|invalid|incorrect).*(2fa|verification|code)|(2fa|verification).*(wrong|invalid|incorrect|fail)", re.I),
+     "Error 10 - wrong 2FA"),
+    (re.compile(r"(wrong|invalid|incorrect).*(password|credentials)|authentication failed|bad credentials", re.I),
+     "Error 11 - wrong email or password"),
+]
+def stream_wrapper_logs(proc, target_list, email=None, password=None, auto_login=False):
+    """Thread target to read logs from wrapper process and store them."""
+    global wrapper_running, wrapper_needs_2fa
+    login_successful = False
+    auth_error = None
+    pipe = proc.stdout
 
+    try:
+        for line in iter(pipe.readline, ''):
+            line = line.strip()
+            if not line:
+                continue
+
+            # nie pokazuj hasła, jeśli wrapper je kiedyś wypisze
+            if password and password in line:
+                line = line.replace(password, "********")
+
+            target_list.append(line)
+            print(f"[WRAPPER LOG] {line}")
+
+            if "credentialHandler:" in line and "2FA: true" in line:
+                wrapper_needs_2fa = True
+                target_list.append("2FA required - please enter your code")
+
+            err = detect_auth_error(line)
+            if err and not auth_error:
+                auth_error = err
+                target_list.append(err)
+
+            if "response type 6" in line or "account info cached successfully" in line:
+                wrapper_running = True
+                wrapper_needs_2fa = False
+                login_successful = True
+                if auto_login:
+                    target_list.append("Auto-login successful. Ready for downloads.")
+                else:
+                    target_list.append("Wrapper login successful. Ready for downloads.")
+                    if email and password:
+                        if save_credentials(email, password):
+                            target_list.append("Credentials saved for auto-login")
+                        else:
+                            target_list.append("Failed to save credentials")
+    except Exception as e:
+        target_list.append(f"Error reading wrapper logs: {str(e)}")
+    finally:
+        exit_code = proc.wait()  # czeka na koniec procesu zamiast poll()
+        if not login_successful:
+            target_list.append(f"Login failed - wrapper process exited with code: {exit_code}")
+            wrapper_running = False
+            wrapper_needs_2fa = False
+            if auto_login:
+                if auth_error:
+                    target_list.append("Auto-login rejected by Apple, deleting saved credentials")
+                    delete_credentials()
+                else:
+                    target_list.append("Auto-login failed (no auth error detected), saved credentials kept")
+        elif exit_code != 0:
+            target_list.append(f"Wrapper process ended unexpectedly with exit code: {exit_code}")
+            wrapper_running = False
+            wrapper_needs_2fa = False
+        else:
+            target_list.append("Wrapper process ended normally")
+            wrapper_running = False
+            wrapper_needs_2fa = False
+        pipe.close()
+
+def detect_auth_error(line):
+    for pattern, message in AUTH_ERROR_PATTERNS:
+        if pattern.search(line):
+            return message
+    return None
 
 def stream_download_logs(pipe, target_list):
     """Thread target to read logs from download process and store them."""
     global download_running, download_process
+    pipe = proc.stdout
     
     try:
         for line in iter(pipe.readline, ''):
@@ -33,68 +111,15 @@ def stream_download_logs(pipe, target_list):
             if line:
                 target_list.append(line)
                 print(f"[DOWNLOAD LOG] {line}")
-                    
     except Exception as e:
         target_list.append(f"Error reading download logs: {str(e)}")
     finally:
-        if download_process and download_process.poll() is not None:
-            exit_code = download_process.poll()
-            if exit_code == 0:
-                target_list.append("Download completed successfully.")
-            else:
-                target_list.append(f"Download failed with exit code: {exit_code}")
-            download_running = False
-        pipe.close()
-
-def stream_wrapper_logs(pipe, target_list, email=None, password=None, auto_login=False):
-    """Thread target to read logs from wrapper process and store them."""
-    global wrapper_running, wrapper_process, wrapper_needs_2fa
-    login_successful = False
-    
-    try:
-        for line in iter(pipe.readline, ''):
-            line = line.strip()
-            if line:
-                target_list.append(line)
-                print(f"[WRAPPER LOG] {line}") 
-                if "credentialHandler:" in line and "2FA: true" in line:
-                    wrapper_needs_2fa = True
-                    target_list.append("2FA required - please enter your code")
-
-                if "response type 6" in line or "account info cached successfully" in line:
-                    wrapper_running = True
-                    wrapper_needs_2fa = False
-                    login_successful = True
-                    if auto_login:
-                        target_list.append("Auto-login successful. Ready for downloads.")
-                    else:
-                        target_list.append("Wrapper login successful. Ready for downloads.")
-                        if email and password:
-                            if save_credentials(email, password):
-                                target_list.append("Credentials saved for auto-login")
-                            else:
-                                target_list.append("Failed to save credentials")
-                    
-    except Exception as e:
-        target_list.append(f"Error reading wrapper logs: {str(e)}")
-    finally:
-        if wrapper_process and wrapper_process.poll() is not None:
-            exit_code = wrapper_process.poll()
-            if not login_successful:
-                target_list.append(f"Login failed - wrapper process exited with code: {exit_code}")
-                wrapper_running = False
-                wrapper_needs_2fa = False
-                if auto_login:
-                    target_list.append("Auto-login failed, deleting saved credentials")
-                    delete_credentials()
-            elif exit_code != 0:
-                target_list.append(f"Wrapper process ended unexpectedly with exit code: {exit_code}")
-                wrapper_running = False
-                wrapper_needs_2fa = False
-            else:
-                target_list.append("Wrapper process ended normally")
-                wrapper_running = False
-                wrapper_needs_2fa = False
+        exit_code = proc.wait()
+        if exit_code == 0:
+            target_list.append("Download completed successfully.")
+        else:
+            target_list.append(f"Download failed with exit code: {exit_code}")
+        download_running = False
         pipe.close()
 
 wrapper_logs = []
@@ -153,7 +178,7 @@ def attempt_auto_login():
         wrapper_logs.append("Found saved credentials, attempting auto-login...")
         return start_wrapper_login(email, password, auto_login=True)
     return False
-
+    
 def start_wrapper_login(email, password, auto_login=False):
     """Start wrapper login process"""
     global wrapper_process, wrapper_running, wrapper_logs
@@ -186,16 +211,13 @@ def start_wrapper_login(email, password, auto_login=False):
             cwd=wrapper_dir 
         )
         
-        threading.Thread(target=stream_wrapper_logs, args=(wrapper_process.stdout, wrapper_logs, email, password, auto_login), daemon=True).start()
+        threading.Thread(target=stream_wrapper_logs, args=(wrapper_process, wrapper_logs, email, password, auto_login), daemon=True).start()
         
         wrapper_logs.append(f"{prefix}Wrapper process started, waiting for login confirmation...")
         return True
         
     except Exception as e:
         wrapper_logs.append(f"{prefix}Error starting wrapper: {str(e)}")
-        if auto_login:
-            wrapper_logs.append("Auto-login failed, deleting saved credentials")
-            delete_credentials()
         return False
 
 
@@ -239,7 +261,7 @@ def submit_2fa():
     try:
         wrapper_process.stdin.write(f"{two_fa_code}\n")
         wrapper_process.stdin.flush()
-        wrapper_logs.append(f"Submitted 2FA code: {two_fa_code}")
+        wrapper_logs.append("2FA code submitted")
         wrapper_needs_2fa = False
         return jsonify({"status": "ok", "msg": "2FA code submitted"})
     except Exception as e:
@@ -292,7 +314,7 @@ def download():
         )
         
         download_running = True
-        threading.Thread(target=stream_download_logs, args=(download_process.stdout, downloader_logs), daemon=True).start()
+        threading.Thread(target=stream_download_logs, args=(download_process, downloader_logs), daemon=True).start()
         
         return jsonify({"status": "ok", "msg": "Download started successfully"})
         
