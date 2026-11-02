@@ -1,0 +1,20 @@
+#!/bin/bash
+DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
+START="$DIR/App/Launcher/Start.py"
+
+case "$1" in
+  ""|run)
+    cd "$DIR" && exec python3 Main.py
+    ;;
+  update|install)
+    shift
+    exec python3 "$START" update "$@"
+    ;;
+  check)
+    exec python3 "$START" check
+    ;;
+  *)
+    echo "Usage: rip [run|update [-y]|check]"
+    exit 1
+    ;;
+esac
