@@ -17,23 +17,24 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
-
+# Zrobić osobny plik na te ścieżki bo coś tu ciasno i będzie wygodniej edytować na przyszłość
 LAUNCHER_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = LAUNCHER_DIR.parent.parent
 USER_DIR = PROJECT_DIR / "User"
 MANIFEST_FILE = LAUNCHER_DIR / "Manifest.ini"
 EXAMPLE_CONFIG = LAUNCHER_DIR / "Example-Config.yaml"
-
 CONFIG_FILE = USER_DIR / "config.yaml"
 CREDENTIALS_FILE = USER_DIR / ".credentials"
 PREFS_FILE = USER_DIR / "prefs.json"
-
 BENTO4_DIR = PROJECT_DIR / "bento4"
 WRAPPER_DIR = PROJECT_DIR / "wrapper"
 AMD_DIR = PROJECT_DIR / "apple-music-downloader"
 AMD_CONFIG = AMD_DIR / "config.yaml"
 GO_ROOT = Path("/usr/local/go")
 SYSTEM_BIN = Path("/usr/local/bin")
+RIP_SCRIPT = LAUNCHER_DIR / "rip"
+USER_AGENT = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
+STATUS_OK, STATUS_MISSING, STATUS_OUTDATED, STATUS_NEWER = "ok", "missing", "outdated", "newer"
 
 # Zrobić osobny plik .ini dla "deafults" żeby dać stabilne na pewno działąjące wersję
 # na przyszłość będzie wtedy jak się rozrośnie
@@ -53,10 +54,6 @@ _DEFAULTS = {
     "apt_packages": "git ffmpeg wget python3-flask python3-yaml",
 }
 
-USER_AGENT = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
-STATUS_OK, STATUS_MISSING, STATUS_OUTDATED, STATUS_NEWER = "ok", "missing", "outdated", "newer"
-
-
 def load_manifest():
     """Return the manifest values; Manifest.ini overrides the built-in defaults."""
     values = dict(_DEFAULTS)
@@ -73,18 +70,14 @@ def load_manifest():
             values[key] = val.strip()
     return values
 
-
 MANIFEST = load_manifest()
-
 
 def parse_version(text):
     m = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", text or "")
     return tuple(int(x or 0) for x in m.groups()) if m else None
 
-
 def fmt(version):
     return ".".join(map(str, version)) if version else "none"
-
 
 try:
     GO_MIN_VERSION = parse_version(MANIFEST["go_min_version"]) or parse_version(_DEFAULTS["go_min_version"])
@@ -93,10 +86,8 @@ except ValueError:
 
 ARCH = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine())
 
-
 def is_root():
     return hasattr(os, "geteuid") and os.geteuid() == 0
-
 
 def setup_path():
     """Put Go, Bento4 and the wrapper on PATH for this process."""
@@ -106,22 +97,18 @@ def setup_path():
         extra.append(str(bin_dir))
     os.environ["PATH"] = os.pathsep.join(extra + [os.environ.get("PATH", "")])
 
-
 def bento4_bin_dir() -> Optional[Path]:
     candidates = sorted(BENTO4_DIR.glob("Bento4*")) if BENTO4_DIR.exists() else []
     bin_dir = candidates[0] / "bin" if candidates else None
     return bin_dir if bin_dir and bin_dir.exists() else None
 
-
 def run(cmd, **kwargs):
     return subprocess.run(cmd, **kwargs)
-
 
 def download(url, dest, timeout=120):
     req = urllib.request.Request(url, headers=USER_AGENT)
     with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as out:
         shutil.copyfileobj(resp, out)
-
 
 def fetch_text(url, timeout=20):
     try:
@@ -130,7 +117,6 @@ def fetch_text(url, timeout=20):
             return resp.read().decode()
     except Exception:
         return None
-
 
 def remote_tags(repo_url):
     """Return the tag names of a git repository, or [] when offline."""
@@ -148,7 +134,6 @@ def _amd_config_is_default():
     clean = run([*git, "diff", "--quiet", "--", "config.yaml"], capture_output=True).returncode == 0
     return tracked and clean
 
-
 def link_config():
     """Make apple-music-downloader/config.yaml point to User/config.yaml."""
     if not AMD_DIR.exists() or not CONFIG_FILE.exists():
@@ -162,14 +147,12 @@ def link_config():
     except OSError:
         shutil.copyfile(CONFIG_FILE, AMD_CONFIG)
 
-
 def fill_wrapper_ports(path):
     text = path.read_text()
     new = re.sub(r"^decrypt-m3u8-port:[ \t]*(''|\"\")?[ \t]*$", 'decrypt-m3u8-port: "127.0.0.1:10020"', text, flags=re.MULTILINE)
     new = re.sub(r"^get-m3u8-port:[ \t]*(''|\"\")?[ \t]*$", 'get-m3u8-port: "127.0.0.1:20020"', new, flags=re.MULTILINE)
     if new != text:
         path.write_text(new)
-
 
 def prepare_user_data():
     """Create User/, migrate settings from older layouts, make sure config.yaml exists."""
@@ -196,12 +179,10 @@ def prepare_user_data():
         link_config()
 
 # Components installersing 
-
 def _apt():
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
     cmd = ["apt-get", "-y", "-o", "Acquire::Retries=3", "-o", "Dpkg::Lock::Timeout=60"]
     return cmd, env
-
 
 def install_system_packages():
     apt, env = _apt()
@@ -209,7 +190,6 @@ def install_system_packages():
     run([*apt, "install", *MANIFEST["apt_packages"].split()], check=True, env=env)
     if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
         install_static_ffmpeg()
-
 
 def install_static_ffmpeg():
     if not ARCH:
@@ -230,7 +210,6 @@ def install_static_ffmpeg():
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-
 def required_go_version():
     required = GO_MIN_VERSION
     try:
@@ -241,7 +220,6 @@ def required_go_version():
         pass
     return required
 
-
 def installed_go_version():
     go_bin = shutil.which("go") or str(GO_ROOT / "bin" / "go")
     try:
@@ -249,7 +227,6 @@ def installed_go_version():
     except (OSError, subprocess.SubprocessError):
         return None
     return parse_version(out.replace("go version go", ""))
-
 
 def latest_go_release():
     text = fetch_text(MANIFEST["go_version_url"])
@@ -281,7 +258,6 @@ def install_go():
     finally:
         archive.unlink(missing_ok=True)
 
-
 def install_gpac():
     apt, env = _apt()
     has_pkg = run(["apt-cache", "show", "gpac"], env=env,
@@ -306,7 +282,6 @@ def install_gpac():
     if not shutil.which("MP4Box"):
         raise RuntimeError("GPAC was built but MP4Box is not on PATH")
 
-
 def _extract_zip(url, target, label):
     """Download a zip into target; target is removed again if anything fails."""
     zip_path = PROJECT_DIR / f"{label}.zip"
@@ -321,7 +296,6 @@ def _extract_zip(url, target, label):
         raise
     finally:
         zip_path.unlink(missing_ok=True)
-
 
 def install_bento4():
     shutil.rmtree(BENTO4_DIR, ignore_errors=True)
@@ -340,10 +314,8 @@ def install_bento4():
             link.symlink_to(exe.resolve())
     print("INFO: Bento4 installed and linked into /usr/local/bin")
 
-
 def wrapper_url():
     return MANIFEST["wrapper_url_arm64"] if ARCH == "arm64" else MANIFEST["wrapper_url"]
-
 
 def _remote_meta(url):
     try:
@@ -352,7 +324,6 @@ def _remote_meta(url):
             return {k: resp.headers.get(k) for k in ("ETag", "Last-Modified", "Content-Length")}
     except Exception:
         return None
-
 
 def install_wrapper():
     meta = _remote_meta(wrapper_url())
@@ -365,7 +336,6 @@ def install_wrapper():
         print("WARN: Wrapper binary not found after extraction")
     if meta:
         (WRAPPER_DIR / ".meta.json").write_text(json.dumps(meta))
-
 
 def install_downloader():
     branch = MANIFEST["amd_branch"]
@@ -391,12 +361,10 @@ class Component:
     def blocking(self):
         return self.status in (STATUS_MISSING, STATUS_OUTDATED)
 
-
 def _missing_system_parts():
     missing = [b for b in ("git", "wget", "ffmpeg", "ffprobe") if not shutil.which(b)]
     missing += [m for m in ("flask", "yaml") if importlib.util.find_spec(m) is None]
     return missing
-
 
 def _scan_go(online):
     required, installed = required_go_version(), installed_go_version()
@@ -410,17 +378,14 @@ def _scan_go(online):
             return Component("go", "Go", STATUS_NEWER, f"{fmt(installed)} -> {fmt(parse_version(latest))}", install_go)
     return Component("go", "Go", STATUS_OK, fmt(installed))
 
-
 def _scan_gpac():
     if shutil.which("MP4Box"):
         return Component("gpac", "GPAC (MP4Box)", STATUS_OK, "installed")
     return Component("gpac", "GPAC (MP4Box)", STATUS_MISSING, "MP4Box not found", install_gpac)
 
-
 def _bento_version(text):
     m = re.search(r"SDK-(\d+(?:-\d+)+)", text or "")
     return m.group(1) if m else None
-
 
 def _scan_bento4():
     bin_dir = bento4_bin_dir()
@@ -431,7 +396,6 @@ def _scan_bento4():
     if installed and pinned and installed != pinned:
         return Component("bento4", "Bento4", STATUS_NEWER, f"{installed} -> {pinned} (Manifest)", install_bento4)
     return Component("bento4", "Bento4", STATUS_OK, installed or "installed")
-
 
 def _scan_wrapper(online):
     if not (WRAPPER_DIR / "wrapper").exists():
@@ -445,7 +409,6 @@ def _scan_wrapper(online):
         if saved and remote and (saved.get("ETag"), saved.get("Last-Modified")) != (remote.get("ETag"), remote.get("Last-Modified")):
             return Component("wrapper", "Wrapper", STATUS_NEWER, "new release available", install_wrapper)
     return Component("wrapper", "Wrapper", STATUS_OK, "installed")
-
 
 def _scan_downloader(online):
     branch = MANIFEST["amd_branch"]
@@ -461,20 +424,17 @@ def _scan_downloader(online):
             return Component("amd", "Downloader", STATUS_NEWER, f"{behind} new commit(s) on {branch}", install_downloader)
     return Component("amd", "Downloader", STATUS_OK, f"branch {branch}")
 
-
 def scan(online=True):
     """Inspect every component and return a list of Component objects."""
     parts = _missing_system_parts()
     system = (Component("system", "System packages", STATUS_MISSING, "missing: " + ", ".join(parts), install_system_packages)
               if parts else Component("system", "System packages", STATUS_OK, "installed"))
-    return [system, _scan_go(online), _scan_gpac(), _scan_bento4(), _scan_wrapper(online), _scan_downloader(online)]
-
+    return [system, _scan_go(online), _scan_gpac(), _scan_bento4(), _scan_wrapper(online), _scan_downloader(online), _scan_rip()]
 
 def check():
     """Offline check used by Main.py; returns the components that block startup."""
     setup_path()
     return [c for c in scan(online=False) if c.blocking]
-
 
 def upstream_hints():
     """Notes about newer upstream versions that need a manual Manifest.ini edit."""
@@ -503,7 +463,6 @@ def cmd_check():
         print(f"  - {c.label}: {c.detail}")
     print("\nRun 'rip update' to fix this.")
     return 1
-
 
 def cmd_update(assume_yes=False):
     setup_path()
@@ -552,7 +511,6 @@ def cmd_update(assume_yes=False):
     print("\nDone.")
     return 0
 
-
 def main(argv):
     command = argv[0] if argv else "update"
     if command in ("update", "install"):
@@ -561,7 +519,23 @@ def main(argv):
         return cmd_check()
     print("Usage: Start.py [update [-y] | check]")
     return 2
+def install_rip():
+    RIP_SCRIPT.chmod(RIP_SCRIPT.stat().st_mode | 0o755)
+    link = SYSTEM_BIN / "rip"
+    if link.is_symlink():
+        link.unlink()
+    link.symlink_to(RIP_SCRIPT)
+    print("INFO: 'rip' command linked into /usr/local/bin")
 
+def _scan_rip():
+    link = SYSTEM_BIN / "rip"
+    if link.is_symlink():
+        if link.exists() and link.resolve() == RIP_SCRIPT.resolve():
+            return Component("rip", "rip command", STATUS_OK, "linked")
+        return Component("rip", "rip command", STATUS_NEWER, "link is broken or points elsewhere", install_rip)
+    if link.exists():
+        return Component("rip", "rip command", STATUS_OK, "/usr/local/bin/rip is a regular file, left alone")
+    return Component("rip", "rip command", STATUS_NEWER, "not linked", install_rip)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
