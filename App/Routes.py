@@ -1,14 +1,17 @@
 import subprocess
 import threading
-from flask import render_template, request, jsonify
 import shlex
 import yaml
 import os
 import json
 import base64
 import re
-from . import app
+import hmac
+from urllib.parse import urlparse
+from flask import Response
 from .Launcher import Start
+from flask import render_template, request, jsonify
+from . import app
 
 wrapper_process = None
 wrapper_running = False
@@ -16,7 +19,6 @@ wrapper_needs_2fa = False
 download_process = None
 download_running = False
 DEFAULT_PREFS = {"special_audio": True, "format": "ATMOS"}
-
 PROJECT_DIR = str(Start.PROJECT_DIR)
 USER_DIR = str(Start.USER_DIR)
 AMD_DIR = str(Start.AMD_DIR)
@@ -28,6 +30,14 @@ AUTH_ERROR_PATTERNS = [
     (re.compile(r"(wrong|invalid|incorrect).*(password|credentials)|authentication failed|bad credentials", re.I),
      "Error 11 - wrong email or password"),
 ]
+
+@app.before_request
+def csrf_guard():
+    if request.method == "POST":
+        origin = request.headers.get("Origin")
+        if origin and urlparse(origin).netloc != request.host:
+            return jsonify({"status": "error", "msg": "Bad origin"}), 403
+            
 def stream_wrapper_logs(proc, target_list, email=None, password=None, auto_login=False):
     """Thread target to read logs from wrapper process and store them."""
     global wrapper_running, wrapper_needs_2fa
@@ -100,7 +110,7 @@ def detect_auth_error(line):
             return message
     return None
 
-def stream_download_logs(pipe, target_list):
+def stream_download_logs(proc, target_list):
     """Thread target to read logs from download process and store them."""
     global download_running, download_process
     pipe = proc.stdout
