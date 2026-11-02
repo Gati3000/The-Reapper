@@ -1,11 +1,6 @@
-#!/usr/bin/env python3
-"""Launcher for The Reapper: installs, checks and updates the external components.
+"""Launcher for The Reapper: installs, checks and updates components.
 
-Standard library only, so it runs before any dependency is installed.
-
-    python3 Start.py update [-y]   list missing/outdated parts, ask, then apply
-    python3 Start.py check         report missing parts and exit
-"""
+Standard library only, so it runs before any dependency is installed."""
 import configparser
 import importlib.util
 import json
@@ -40,6 +35,8 @@ AMD_CONFIG = AMD_DIR / "config.yaml"
 GO_ROOT = Path("/usr/local/go")
 SYSTEM_BIN = Path("/usr/local/bin")
 
+# Zrobić osobny plik .ini dla "deafults" żeby dać stabilne na pewno działąjące wersję
+# na przyszłość będzie wtedy jak się rozrośnie
 MANIFEST_SECTION = "manifest"
 _DEFAULTS = {
     "go_min_version": "1.23.1",
@@ -144,11 +141,6 @@ def remote_tags(repo_url):
         return []
     return [line.split("refs/tags/")[-1] for line in out.splitlines() if "refs/tags/" in line]
 
-
-# ---------------------------------------------------------------------------
-# User data (settings live in User/)
-# ---------------------------------------------------------------------------
-
 def _amd_config_is_default():
     """True when the downloader's config.yaml is the untouched tracked file."""
     git = ["git", "-C", str(AMD_DIR)]
@@ -203,10 +195,7 @@ def prepare_user_data():
             print(f"WARN: Could not update config.yaml: {e}")
         link_config()
 
-
-# ---------------------------------------------------------------------------
-# Component installers
-# ---------------------------------------------------------------------------
+# Components installersing 
 
 def _apt():
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
@@ -390,11 +379,6 @@ def install_downloader():
         run([*git, "reset", "--hard", f"origin/{branch}"], check=True, timeout=60)
     prepare_user_data()
 
-
-# ---------------------------------------------------------------------------
-# Scanning
-# ---------------------------------------------------------------------------
-
 @dataclass
 class Component:
     key: str
@@ -509,11 +493,6 @@ def upstream_hints():
         if parse_version(latest) > (parse_version(MANIFEST["gpac_ver"]) or (0,)):
             hints.append(f"GPAC {latest} exists upstream, Manifest pins {MANIFEST['gpac_ver']}")
     return hints
-
-
-# ---------------------------------------------------------------------------
-# Commands
-# ---------------------------------------------------------------------------
 
 def cmd_check():
     problems = check()

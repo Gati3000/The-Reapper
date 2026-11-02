@@ -1,5 +1,3 @@
-/* The Reapper theme. Shared by Home.html and Settings.html. */
-
 :root,
 [data-bs-theme="dark"] {
     --rp-bg: #0e1014;
@@ -46,7 +44,6 @@ body {
     color: var(--rp-muted) !important;
 }
 
-/* Header */
 .app-logo {
     width: 64px;
     height: 64px;
@@ -59,7 +56,6 @@ body {
     letter-spacing: -0.02em;
 }
 
-/* Buttons */
 .btn {
     border-radius: 10px;
     font-weight: 500;
@@ -93,7 +89,6 @@ body {
     --bs-btn-hover-border-color: var(--rp-muted);
 }
 
-/* Form controls */
 .form-control,
 .form-select {
     background-color: var(--rp-surface-2);
@@ -155,7 +150,6 @@ body {
     color: var(--rp-text);
 }
 
-/* Logs */
 .log-box {
     background: #090b0e;
     border: 1px solid var(--rp-border);
@@ -174,7 +168,6 @@ body {
 .log-info { color: var(--rp-info); }
 .log-warn { color: var(--rp-warn); }
 
-/* 2FA modal */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -238,7 +231,6 @@ body {
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Settings page */
 .settings-container {
     max-width: 1100px;
     margin: 0 auto;
@@ -282,7 +274,6 @@ body > .alert {
     min-width: 300px;
 }
 
-/* Tablets and phones */
 @media (max-width: 768px) {
     .app-title { font-size: 1.75rem; }
     .app-logo { width: 52px; height: 52px; }
@@ -302,7 +293,7 @@ body > .alert {
 
     .log-box { height: 180px; font-size: 0.8rem; }
 
-    /* Login and wrapper buttons stack instead of overflowing */
+    
     .text-center > .btn.ms-2 { margin-left: 0 !important; margin-top: 8px; }
 
     #download-btn { width: 100%; }
