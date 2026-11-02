@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -6,25 +5,27 @@ __pycache__/
 venv/
 env/
 .env
-
-# Editors and OS
+.env.*
+!.env.example
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 *.swp
-
-# Logs
 *.log
-
-# Local user data (settings, saved login, preferences)
 /User/
-
-# Components downloaded by Launcher/Start.py
 /bento4/
 /wrapper/
 /apple-music-downloader/
-
-# Legacy files from older versions
 /firstrun
 /.credentials
+*.m4a
+*.flac
+*.lrc
+.credentials
+config.yaml
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.bak
+*.orig
