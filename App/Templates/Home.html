@@ -1,32 +1,38 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0e1014">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='Icon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='Icon-180.png') }}">
     <title>Apple Music Downloader</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='Theme.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
-<body class="bg-dark text-light">
+<body>
 
 <div class="container-fluid p-3">
     <div class="text-center mb-4">
-        <h1 class="display-4 text-primary mb-2">
-            Apple Music Downloader Web UI
-        </h1>
+        <img src="{{ url_for('static', filename='Icon.svg') }}" alt="" class="app-logo mb-2">
+        <h1 class="app-title mb-2">The Reapper</h1>
         <p class="lead text-muted mb-3">
             A simple web interface for downloading your favorite Apple Music tracks
         </p>
         <div class="mb-3">
-            <a href="https://github.com/Gati3000/The-Reapper" target="_blank" class="btn btn-outline-warning btn-sm">
-                ⭐ Star this project on GitHub ⭐
+            <a href="https://github.com/Gati3000/The-Reapper" target="_blank" class="btn btn-outline-light btn-sm">
+                Star on GitHub
+            </a>
+            <a href="https://github.com/lalit22km/alac-rip" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm ms-2">
+                Star Original Repository
             </a>
         </div>
     </div>
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <button class="btn btn-outline-light" onclick="window.location.href='/settings'">⚙ Settings</button>
+            <button class="btn btn-outline-light" onclick="window.location.href='/settings'">Settings</button>
         </div>
         <div>
             <span id="wrapper-indicator"
@@ -40,15 +46,15 @@
         <button id="login-btn" class="btn btn-secondary">Login to Wrapper</button>
         <button id="stop-wrapper-btn" class="btn btn-danger ms-2 d-none">Stop Wrapper</button>
         <button id="auto-login-btn" class="btn btn-info ms-2 d-none">Auto Login</button>
-        <button id="forget-credentials-btn" class="btn btn-warning ms-2 d-none">🗑️ Forget Credentials</button>
+        <button id="forget-credentials-btn" class="btn btn-warning ms-2 d-none">Forget Credentials</button>
         
         <div id="saved-credentials-info" class="mt-2 d-none">
-            <small class="text-success"> Saved credentials for: <span id="saved-email-display"></span></small>
+            <small class="text-success">Saved credentials for: <span id="saved-email-display"></span></small>
         </div>
         
         <div id="login-form" class="mt-3 d-none">
-            <input type="email" id="email" placeholder="Email" class="form-control mb-2 w-25 mx-auto">
-            <input type="password" id="password" placeholder="Password" class="form-control mb-2 w-25 mx-auto">
+            <input type="email" id="email" placeholder="Email" class="form-control mb-2 input-narrow mx-auto">
+            <input type="password" id="password" placeholder="Password" class="form-control mb-2 input-narrow mx-auto">
             <button id="submit-login" class="btn btn-success">Login</button>
         </div>
     </div>
@@ -70,7 +76,7 @@
     </div>
 
     <div class="text-center mb-4">
-        <input id="link-box" type="text" class="form-control form-control-lg mb-3 w-50 mx-auto"
+        <input id="link-box" type="text" class="form-control form-control-lg mb-3 input-wide mx-auto"
                placeholder="Paste Apple Music link here">
 
         <div class="d-flex justify-content-center align-items-center mb-3">
@@ -81,7 +87,7 @@
         </div>
         
         <div class="d-flex justify-content-center mb-3">
-            <div id="format-options" class="border rounded p-3" style="background-color: #333; border-color: #555; max-width: 300px;">
+            <div id="format-options" class="format-box">
                 <div class="form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="format" id="atmos" value="ATMOS" checked>
                     <label class="form-check-label" for="atmos">ATMOS</label>
@@ -130,6 +136,8 @@
 </div>
 
 <script>
+const esc = (t) => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 function checkSavedCredentials() {
     axios.get('/check_saved_credentials')
         .then(res => {
@@ -150,9 +158,9 @@ document.getElementById('auto-login-btn').addEventListener('click', () => {
     axios.post('/auto_login')
         .then(res => {
             if (res.data.status === 'ok') {
-                wrapperLogs.innerHTML += `<div>> ${res.data.msg}</div>`;
+                wrapperLogs.innerHTML += `<div>> ${esc(res.data.msg)}</div>`;
             } else {
-                wrapperLogs.innerHTML += `<div>> ${res.data.msg}</div>`;
+                wrapperLogs.innerHTML += `<div>> ${esc(res.data.msg)}</div>`;
             }
             wrapperLogs.scrollTop = wrapperLogs.scrollHeight;
         });
@@ -190,7 +198,7 @@ document.getElementById("submit-login").addEventListener("click", () => {
     axios.post("/login_wrapper", new URLSearchParams({email, password}))
         .then(res => {
             if (res.data.status === "ok") {
-                wrapperLogs.innerHTML += `<div>> ${res.data.msg}</div>`;
+                wrapperLogs.innerHTML += `<div>> ${esc(res.data.msg)}</div>`;
             } else {
                 wrapperLogs.innerHTML += `<div>> ERROR: ${res.data.msg}</div>`;
             }
@@ -209,7 +217,7 @@ document.getElementById("download-btn").addEventListener("click", () => {
     
     if (!link.trim()) {
         const logs = document.getElementById("downloader-logs");
-        logs.innerHTML += `<div style="color: #dc3545;"> Please enter a valid Apple Music URL</div>`;
+        logs.innerHTML += `<div class="log-err"> Please enter a valid Apple Music URL</div>`;
         logs.scrollTop = logs.scrollHeight;
         return;
     }
@@ -224,17 +232,17 @@ document.getElementById("download-btn").addEventListener("click", () => {
         .then(res => {
             const logs = document.getElementById("downloader-logs");
             if (res.data.status === "ok") {
-                logs.innerHTML += `<div style="color: #28a745;"> ${res.data.msg}</div>`;
+                logs.innerHTML += `<div class="log-ok"> ${esc(res.data.msg)}</div>`;
                 document.getElementById("download-btn").disabled = true;
                 document.getElementById("download-btn").textContent = "Downloading...";
             } else {
-                logs.innerHTML += `<div style="color: #dc3545;"> ${res.data.msg}</div>`;
+                logs.innerHTML += `<div class="log-err"> ${esc(res.data.msg)}</div>`;
             }
             logs.scrollTop = logs.scrollHeight;
         })
         .catch(err => {
             const logs = document.getElementById("downloader-logs");
-            logs.innerHTML += `<div style="color: #dc3545;"> Failed to start download</div>`;
+            logs.innerHTML += `<div class="log-err"> Failed to start download</div>`;
             logs.scrollTop = logs.scrollHeight;
         });
 });
@@ -243,7 +251,7 @@ document.getElementById("stop-wrapper-btn").addEventListener("click", () => {
     axios.post("/stop_wrapper")
         .then(res => {
             const wrapperLogs = document.getElementById("wrapper-logs");
-            wrapperLogs.innerHTML += `<div>> ${res.data.msg}</div>`;
+            wrapperLogs.innerHTML += `<div>> ${esc(res.data.msg)}</div>`;
             wrapperLogs.scrollTop = wrapperLogs.scrollHeight;
             
             if (res.data.status === "ok") {
@@ -278,14 +286,14 @@ function updateLogs() {
 
         if (res.data.wrapper.length > 0) {
             wrapperBox.innerHTML = res.data.wrapper.map(l => {
-                if (l.includes("✅") || l.includes("Ready for downloads")) {
-                    return `<div style="color: #28a745;">> ${l}</div>`;
-                } else if (l.includes("❌") || l.includes("Login failed") || l.includes("ERROR")) {
-                    return `<div style="color: #dc3545;">> ${l}</div>`;
+                if (l.includes("Ready for downloads")) {
+                    return `<div class="log-ok">> ${esc(l)}</div>`;
+                } else if (l.includes("Login failed") || l.includes("ERROR")) {
+                    return `<div class="log-err">> ${esc(l)}</div>`;
                 } else if (l.includes("[.] response type 6")) {
-                    return `<div style="color: #28a745; font-weight: bold;">> ${l}</div>`;
+                    return `<div class="log-ok fw-bold">> ${esc(l)}</div>`;
                 } else {
-                    return `<div>> ${l}</div>`;
+                    return `<div>> ${esc(l)}</div>`;
                 }
             }).join("");
             wrapperBox.scrollTop = wrapperBox.scrollHeight;
@@ -293,14 +301,14 @@ function updateLogs() {
         
         if (res.data.downloader.length > 0) {
             downloaderBox.innerHTML = res.data.downloader.map(l => {
-                if (l.includes("✅") || l.includes("completed successfully")) {
-                    return `<div style="color: #28a745;">> ${l}</div>`;
-                } else if (l.includes("❌") || l.includes("failed") || l.includes("Error")) {
-                    return `<div style="color: #dc3545;">> ${l}</div>`;
-                } else if (l.includes("🎵") || l.includes("Starting")) {
-                    return `<div style="color: #17a2b8;">> ${l}</div>`;
+                if (l.includes("completed successfully")) {
+                    return `<div class="log-ok">> ${esc(l)}</div>`;
+                } else if (l.includes("failed") || l.includes("Error")) {
+                    return `<div class="log-err">> ${esc(l)}</div>`;
+                } else if (l.includes("Starting")) {
+                    return `<div class="log-info">> ${esc(l)}</div>`;
                 } else {
-                    return `<div>> ${l}</div>`;
+                    return `<div>> ${esc(l)}</div>`;
                 }
             }).join("");
             downloaderBox.scrollTop = downloaderBox.scrollHeight;
@@ -415,21 +423,21 @@ document.getElementById('submit-2fa').addEventListener('click', function() {
     }
     
     const wrapperLogs = document.getElementById('wrapper-logs');
-    wrapperLogs.innerHTML += `<div style="color: #17a2b8;">> Submitting 2FA code...</div>`;
+    wrapperLogs.innerHTML += `<div class="log-info">> Submitting 2FA code...</div>`;
     wrapperLogs.scrollTop = wrapperLogs.scrollHeight;
     
     axios.post('/submit_2fa', new URLSearchParams({twofa_code: code}))
         .then(res => {
             if (res.data.status === 'ok') {
-                wrapperLogs.innerHTML += `<div style="color: #28a745;">> ${res.data.msg}</div>`;
+                wrapperLogs.innerHTML += `<div class="log-ok">> ${esc(res.data.msg)}</div>`;
                 hide2FAModal();
             } else {
-                wrapperLogs.innerHTML += `<div style="color: #dc3545;">> ${res.data.msg}</div>`;
+                wrapperLogs.innerHTML += `<div class="log-err">> ${esc(res.data.msg)}</div>`;
             }
             wrapperLogs.scrollTop = wrapperLogs.scrollHeight;
         })
         .catch(err => {
-            wrapperLogs.innerHTML += `<div style="color: #dc3545;">> Failed to submit 2FA code</div>`;
+            wrapperLogs.innerHTML += `<div class="log-err">> Failed to submit 2FA code</div>`;
             wrapperLogs.scrollTop = wrapperLogs.scrollHeight;
         });
 });
@@ -437,7 +445,7 @@ document.getElementById('submit-2fa').addEventListener('click', function() {
 document.getElementById('cancel-2fa').addEventListener('click', function() {
     hide2FAModal();
     const wrapperLogs = document.getElementById('wrapper-logs');
-    wrapperLogs.innerHTML += `<div style="color: #ffc107;">> 2FA cancelled by user</div>`;
+    wrapperLogs.innerHTML += `<div class="log-warn">> 2FA cancelled by user</div>`;
     wrapperLogs.scrollTop = wrapperLogs.scrollHeight;
 });
 document.getElementById('twofa-code').addEventListener('keypress', function(e) {

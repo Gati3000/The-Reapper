@@ -1,0 +1,58 @@
+#!/bin/bash
+# This is Place for my own commands for The Reapper app
+DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
+START="$DIR/App/Launcher/Start.py"
+MANAGE="$DIR/App/Launcher/Manage.py"
+
+update_all() {
+  if [ "$(id -u)" -eq 0 ]; then
+    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+      sudo -u "$SUDO_USER" env REAPPER_CHAIN=1 python3 "$MANAGE" self-update "$@" || return $?
+    else
+      REAPPER_CHAIN=1 python3 "$MANAGE" self-update "$@" || return $?
+    fi
+    python3 "$START" update "$@"
+  else
+    REAPPER_CHAIN=1 python3 "$MANAGE" self-update "$@" || return $?
+    sudo python3 "$START" update "$@"
+  fi
+}
+
+main() {
+  case "$1" in
+    ""|-up|run)
+      cd "$DIR" && exec python3 Main.py
+      ;;
+    -update|update|install)
+      shift
+      update_all "$@"
+      ;;
+    -rm|uninstall)
+      shift
+      exec python3 "$MANAGE" uninstall "$@"
+      ;;
+    purge)
+      shift
+      exec python3 "$MANAGE" purge "$@"
+      ;;
+    self-update|upgrade)
+      shift
+      exec python3 "$MANAGE" self-update "$@"
+      ;;
+    check|-check)
+      exec python3 "$START" check
+      ;;
+    *)
+      echo "Usage:"
+      echo "  rip -up            start the web UI"
+      echo "  rip -update [-y]   update the repo code, then the components"
+      echo "  rip -rm            remove the program, keep user settings, compponents and music"
+      echo "  rip -rm -f         remove all traces made by this program iclouding user settings/, music is kept in a backup"
+      echo "  rip check          report missing components"
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
+exit $?
