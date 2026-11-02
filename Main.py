@@ -6,9 +6,8 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_DIR))
 sys.path.insert(0, str(PROJECT_DIR / "App" / "Launcher"))
-
+# Star must be imported after path 7,8 are set so dont change it
 import Start
-
 
 def main():
     Start.setup_path()
@@ -23,13 +22,19 @@ def main():
 
     Start.prepare_user_data()
     from App import app
-
+# Its not save bo it works on LAN so its fine XD i dont want to create login 
+# but yeah mby in future ill change it so its saver or sum
     host = os.environ.get("REAPPER_HOST", "0.0.0.0")
-    port = int(os.environ.get("REAPPER_PORT", "5000"))
+    try:
+       port = int(os.environ.get("REAPPER_PORT", "5000"))
+       if not 1 <= port <= 65535:
+           raise ValueError
+    except ValueError:
+        print(f"Invalid REAPPER_PORT: {os.environ.get('REAPPER_PORT')!r}. Use a number between 1 and 65535.")
+        return 1
     print(f"Starting The Reapper on http://{host}:{port}")
     app.run(host=host, port=port, debug=False)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
