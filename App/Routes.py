@@ -434,10 +434,14 @@ def save_config():
                     config_data[key] = bool(value)
             elif key in path_fields:
                 config_data[key] = translate_path_to_wsl(str(value))
-        
+        try:
+            with open(config_path, 'r', encoding='utf-8') as file:
+                merged = yaml.safe_load(file) or {}
+        except (OSError, yaml.YAMLError):
+            merged = {}
+        merged.update(config_data)
         with open(config_path, 'w', encoding='utf-8') as file:
-            yaml.dump(config_data, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        Start.link_config()
+            yaml.dump(merged, file, default_flow_style=False, allow_unicode=True, sort_keys=False)
             
         return jsonify({"status": "ok", "msg": "Configuration saved successfully"})
     except Exception as e:
