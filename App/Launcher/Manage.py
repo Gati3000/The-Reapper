@@ -146,9 +146,8 @@ def switch_to_beta(current, force=False, assume_yes=False):
     return 0
 
 def cmd_self_update(force=False, assume_yes=False, beta=False):
-
     branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
-        if beta and branch != BETA_BRANCH:
+    if beta and branch != BETA_BRANCH:
         return switch_to_beta(branch, force, assume_yes)
     if branch in ("", "HEAD"):
         print("No branch is checked out (detached HEAD). Run: git switch <branch>")
