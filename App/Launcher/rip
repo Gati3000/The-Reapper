@@ -3,6 +3,7 @@
 DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
 START="$DIR/App/Launcher/Start.py"
 MANAGE="$DIR/App/Launcher/Manage.py"
+BETA_BRANCH = "Beta"
 
 update_all() {
   if [ "$(id -u)" -eq 0 ]; then
@@ -45,10 +46,13 @@ main() {
     *)
       echo "Usage:"
       echo "  rip -up            start the web UI"
+      echo "  rip -update -b     switch to the Beta branch (must exist on GitHub), then update the components"
       echo "  rip -update [-y]   update the repo code, then the components"
       echo "  rip -rm            remove the program, keep user settings, compponents and music"
       echo "  rip -rm -f         remove all traces made by this program iclouding user settings/, music is kept in a backup"
-      echo "  rip check          report missing components"
+      echo "  rip -check         report missing components"
+      echo "  rip -log           start creating log file"
+      echo "  rip -log -stop     stop creating log file which you can find in User folder"
       exit 1
       ;;
   esac
