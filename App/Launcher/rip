@@ -3,7 +3,8 @@
 DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
 START="$DIR/App/Launcher/Start.py"
 MANAGE="$DIR/App/Launcher/Manage.py"
-BETA_BRANCH = "Beta"
+LOG_FLAG="$DIR/User/.log_enabled"
+LOG_FILE="$DIR/User/reapper.log"
 
 update_all() {
   if [ "$(id -u)" -eq 0 ]; then
@@ -19,10 +20,72 @@ update_all() {
   fi
 }
 
+show_help() {
+  local B="" C="" D="" R=""
+  if [ -t 1 ]; then
+    B=$'\033[1m'; C=$'\033[36m'; D=$'\033[2m'; R=$'\033[0m'
+  fi
+  echo
+  echo "${B}The Reapper${R} ${D}- Apple Music downloader web UI${R}"
+  echo
+  echo "${B}Usage:${R} rip ${C}<command>${R} [options]"
+  echo
+  echo "${B}Run${R}"
+  printf "  ${C}%-22s${R} %s\n" "rip -up" "start the web UI"
+  printf "  ${C}%-22s${R} %s\n" "rip -check" "report missing or outdated components"
+  echo
+  echo "${B}Update${R}"
+  printf "  ${C}%-22s${R} %s\n" "sudo rip -update" "update the project code, then the components"
+  printf "  ${C}%-22s${R} %s\n" "sudo rip -update -y" "same, without questions"
+  printf "  ${C}%-22s${R} %s\n" "sudo rip -update -b" "switch to the Beta branch, then update"
+  printf "  ${C}%-22s${R} %s\n" "rip upgrade" "update only the project code (add --force to discard local changes)"
+  echo
+  echo "${B}Logging${R}"
+  printf "  ${C}%-22s${R} %s\n" "rip -log" "start writing User/reapper.log"
+  printf "  ${C}%-22s${R} %s\n" "rip -log -stop" "stop writing the log file"
+  echo
+  echo "${B}Remove${R}"
+  printf "  ${C}%-22s${R} %s\n" "sudo rip -rm" "remove the program, keep User/ settings and music (backup)"
+  printf "  ${C}%-22s${R} %s\n" "sudo rip -rm -f" "remove everything including User/ settings, music stays in a backup"
+  echo
+  echo "${D}Aliases: run = -up, update/install = -update, check = -check, uninstall = -rm, log = -log${R}"
+  echo
+}
+
+cmd_log() {
+  case "$1" in
+    "")
+      mkdir -p "$DIR/User" && touch "$LOG_FLAG" || { echo "rip: cannot create $LOG_FLAG" >&2; return 1; }
+      echo "Logging is ON. Everything the web UI prints goes to:"
+      echo "  $LOG_FILE"
+      echo "It works in the running UI too (if you started it before updating Main.py, restart it once)."
+      echo "Stop with: rip -log -stop"
+      ;;
+    -stop|stop)
+      if [ -e "$LOG_FLAG" ]; then
+        rm -f "$LOG_FLAG"
+        [ -f "$LOG_FILE" ] && echo "$(date '+%Y-%m-%d %H:%M:%S') --- logging stopped (rip -log -stop) ---" >> "$LOG_FILE"
+        echo "Logging is OFF."
+      else
+        echo "Logging was not running."
+      fi
+      [ -f "$LOG_FILE" ] && echo "Log file: $LOG_FILE"
+      ;;
+    *)
+      echo "Usage: rip -log [-stop]" >&2
+      return 2
+      ;;
+  esac
+}
+
 main() {
   case "$1" in
-    ""|-up|run)
+    -up|run)
       cd "$DIR" && exec python3 Main.py
+      ;;
+    ""|-h|--help|help)
+      show_help
+      exit 0
       ;;
     -update|update|install)
       shift
@@ -40,19 +103,17 @@ main() {
       shift
       exec python3 "$MANAGE" self-update "$@"
       ;;
+    -log|log)
+      shift
+      cmd_log "$@"
+      exit $?
+      ;;
     check|-check)
       exec python3 "$START" check
       ;;
     *)
-      echo "Usage:"
-      echo "  rip -up            start the web UI"
-      echo "  rip -update -b     switch to the Beta branch (must exist on GitHub), then update the components"
-      echo "  rip -update [-y]   update the repo code, then the components"
-      echo "  rip -rm            remove the program, keep user settings, compponents and music"
-      echo "  rip -rm -f         remove all traces made by this program iclouding user settings/, music is kept in a backup"
-      echo "  rip -check         report missing components"
-      echo "  rip -log           start creating log file"
-      echo "  rip -log -stop     stop creating log file which you can find in User folder"
+      echo "rip: unknown command '$1'" >&2
+      show_help >&2
       exit 1
       ;;
   esac

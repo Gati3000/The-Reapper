@@ -1,15 +1,87 @@
 """Entry point: verify the installation, then start the web UI."""
 import os
+import re
 import sys
+import threading
+import time
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_DIR))
 sys.path.insert(0, str(PROJECT_DIR / "App" / "Launcher"))
-# Star must be imported after path 7,8 are set so dont change it
+# mus sie importowac przed  bo nie bedzie sciezek tych wyrzej napisanych 
 import Start
 
+LOG_FLAG_NAME = ".log_enabled"
+LOG_FILE_NAME = "reapper.log"
+LOG_MAX_BYTES = 5 * 1024 * 1024 
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+#  Slabe logi do poprawy kiedys ale juz sa to sbie pokorzystam
+class _LogSink:
+    def __init__(self, user_dir):
+        self.flag = Path(user_dir) / LOG_FLAG_NAME
+        self.path = Path(user_dir) / LOG_FILE_NAME
+        self.lock = threading.Lock()
+        self.active = False
+        self.at_line_start = True
+
+    def _append(self, text):
+        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8", errors="replace") as f:
+            f.write(text)
+
+    def write(self, data):
+        try:
+            with self.lock:
+                if not self.flag.exists():
+                    self.active = False
+                    return
+                if not self.active:
+                    self.active = True
+                    self.at_line_start = True
+                    try:
+                        if self.path.stat().st_size > LOG_MAX_BYTES:
+                            os.replace(self.path, str(self.path) + ".old")
+                    except FileNotFoundError:
+                        pass
+                    self._append(time.strftime("%Y-%m-%d %H:%M:%S") + " --- logging started ---\n")
+                out = []
+                for chunk in _ANSI.sub("", data).replace("\r\n", "\n").replace("\r", "\n").splitlines(True):
+                    if self.at_line_start:
+                        out.append(time.strftime("%Y-%m-%d %H:%M:%S") + " ")
+                    out.append(chunk)
+                    self.at_line_start = chunk.endswith("\n")
+                if out:
+                    self._append("".join(out))
+        except Exception:
+            pass 
+
+
+class _Tee:
+    def __init__(self, stream, sink):
+        self._stream = stream
+        self._sink = sink
+
+    def write(self, data):
+        written = self._stream.write(data)
+        if isinstance(data, str) and data:
+            self._sink.write(data)
+        return written
+
+    def __getattr__(self, name): 
+        return getattr(self._stream, name)
+
+
+def install_log_tee(user_dir=None):
+    sink = _LogSink(user_dir if user_dir is not None else Start.USER_DIR)
+    sys.stdout = _Tee(sys.stdout, sink)
+    sys.stderr = _Tee(sys.stderr, sink)
+    return sink
+
+
 def main():
+    install_log_tee()
     Start.setup_path()
     problems = Start.check()
     if problems:

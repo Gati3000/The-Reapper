@@ -80,10 +80,14 @@
         <input id="link-box" type="text" class="form-control form-control-lg mb-3 input-wide mx-auto"
                placeholder="Paste Apple Music link here">
 
-        <div class="d-flex justify-content-center align-items-center mb-3">
+        <div class="d-flex justify-content-center align-items-center gap-4 mb-3">
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="special-audio" checked>
                 <label class="form-check-label" for="special-audio">Special Audio</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="select-all">
+                <label class="form-check-label" for="select-all">Download all</label>
             </div>
         </div>
         
@@ -216,6 +220,7 @@ document.getElementById("download-btn").addEventListener("click", () => {
     const link = document.getElementById("link-box").value;
     const format = document.querySelector("input[name='format']:checked")?.value || "ATMOS";
     const specialAudio = document.getElementById("special-audio").checked;
+    const selectAll = document.getElementById("select-all").checked;
     
     if (!link.trim()) {
         const logs = document.getElementById("downloader-logs");
@@ -227,7 +232,8 @@ document.getElementById("download-btn").addEventListener("click", () => {
     const formData = new URLSearchParams({
         link: link,
         format: format,
-        special_audio: specialAudio
+        special_audio: specialAudio,
+        select_all: selectAll
     });
 
     axios.post("/download", formData)
@@ -350,6 +356,7 @@ function loadDownloadFolders() {
 loadDownloadFolders();
 
 const specialAudioBox = document.getElementById('special-audio');
+const selectAllBox = document.getElementById('select-all');
 const formatOptions = document.getElementById('format-options');
 
 function applySpecialAudioState() {
@@ -361,6 +368,7 @@ function applySpecialAudioState() {
 function saveAudioPrefs() {
     axios.post('/save_prefs', {
         special_audio: specialAudioBox.checked,
+        select_all: selectAllBox.checked,
         format: document.querySelector("input[name='format']:checked")?.value
     });
 }
@@ -368,6 +376,7 @@ function saveAudioPrefs() {
 function loadAudioPrefs() {
     axios.get('/get_prefs').then(res => {
         specialAudioBox.checked = res.data.special_audio;
+        selectAllBox.checked = !!res.data.select_all;
         const radio = document.querySelector(`input[name='format'][value='${res.data.format}']`);
         if (radio) radio.checked = true;
         applySpecialAudioState();
@@ -378,6 +387,7 @@ specialAudioBox.addEventListener('change', () => {
     applySpecialAudioState();
     saveAudioPrefs();
 });
+selectAllBox.addEventListener('change', saveAudioPrefs);
 formatOptions.querySelectorAll('input[type="radio"]').forEach(r =>
     r.addEventListener('change', saveAudioPrefs)
 );

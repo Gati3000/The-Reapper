@@ -18,7 +18,7 @@ wrapper_running = False
 wrapper_needs_2fa = False
 download_process = None
 download_running = False
-DEFAULT_PREFS = {"special_audio": True, "format": "ATMOS"}
+DEFAULT_PREFS = {"special_audio": True, "format": "ATMOS", "select_all": False}
 PROJECT_DIR = str(Start.PROJECT_DIR)
 USER_DIR = str(Start.USER_DIR)
 AMD_DIR = str(Start.AMD_DIR)
@@ -51,7 +51,6 @@ def stream_wrapper_logs(proc, target_list, email=None, password=None, auto_login
             if not line:
                 continue
 
-            # nie pokazuj hasła, jeśli wrapper je kiedyś wypisze
             if password and password in line:
                 line = line.replace(password, "********")
 
@@ -83,7 +82,7 @@ def stream_wrapper_logs(proc, target_list, email=None, password=None, auto_login
     except Exception as e:
         target_list.append(f"Error reading wrapper logs: {str(e)}")
     finally:
-        exit_code = proc.wait()  # czeka na koniec procesu zamiast poll()
+        exit_code = proc.wait() 
         if not login_successful:
             target_list.append(f"Login failed - wrapper process exited with code: {exit_code}")
             wrapper_running = False
@@ -110,8 +109,13 @@ def detect_auth_error(line):
             return message
     return None
 
-def stream_download_logs(proc, target_list):
-    """Thread target to read logs from download process and store them."""
+AMD_SELECT_PROMPT = "Please select from the"
+
+def stream_download_logs(proc, target_list, auto_all=False):
+    """Thread target to read logs from download process and store them.
+
+    With auto_all=True every AMD selection prompt is answered with "all".
+    """
     global download_running, download_process
     pipe = proc.stdout
     
@@ -121,6 +125,13 @@ def stream_download_logs(proc, target_list):
             if line:
                 target_list.append(line)
                 print(f"[DOWNLOAD LOG] {line}")
+                if auto_all and AMD_SELECT_PROMPT in line:
+                    try:
+                        proc.stdin.write("all\n")
+                        proc.stdin.flush()
+                        target_list.append("Auto-selected: all")
+                    except (BrokenPipeError, OSError, ValueError) as e:
+                        target_list.append(f"Could not send 'all' to downloader: {str(e)}")
     except Exception as e:
         target_list.append(f"Error reading download logs: {str(e)}")
     finally:
@@ -131,6 +142,11 @@ def stream_download_logs(proc, target_list):
             target_list.append(f"Download failed with exit code: {exit_code}")
         download_running = False
         pipe.close()
+        if proc.stdin:
+            try:
+                proc.stdin.close()
+            except Exception:
+                pass
 
 wrapper_logs = []
 downloader_logs = []
@@ -286,6 +302,7 @@ def download():
     link = request.form.get("link")
     format_choice = request.form.get("format")
     special_audio = request.form.get("special_audio") == "true"
+    select_all = request.form.get("select_all") == "true"
     
     if not wrapper_running:
         return jsonify({"status": "error", "msg": "Wrapper not running"})
@@ -310,6 +327,8 @@ def download():
         cmd = ["go", "run", "main.go", link]
         downloader_logs.append(f"Starting standard download: {link}")
     
+    if select_all:
+        downloader_logs.append("Option All: every selection prompt will be answered with 'all'")
     downloader_logs.append(f"Working directory: {amd_dir}")
     downloader_logs.append(f"Executing: {' '.join(cmd)}")
     
@@ -318,13 +337,14 @@ def download():
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE if select_all else None,
             bufsize=1,
             universal_newlines=True,
             cwd=amd_dir
         )
         
         download_running = True
-        threading.Thread(target=stream_download_logs, args=(download_process, downloader_logs), daemon=True).start()
+        threading.Thread(target=stream_download_logs, args=(download_process, downloader_logs, select_all), daemon=True).start()
         
         return jsonify({"status": "ok", "msg": "Download started successfully"})
         
@@ -507,6 +527,7 @@ def save_prefs():
     fmt = data.get("format")
     prefs = {
         "special_audio": bool(data.get("special_audio", True)),
+        "select_all": bool(data.get("select_all", False)),
         "format": fmt if fmt in ("ATMOS", "AAC") else "ATMOS"
     }
     try:
