@@ -16,6 +16,7 @@ CONFIG_FILE = USER_DIR / "config.yaml"
 SYSTEM_BIN = Path("/usr/local/bin")
 SAVE_FOLDER_KEYS = ("alac-save-folder", "atmos-save-folder", "aac-save-folder", "mv-save-folder")
 WATCHED_FILES = ("Manifest.ini", "Start.py", "Manage.py")
+BETA_BRANCH = "Beta"
 
 
 def is_root():
@@ -75,16 +76,80 @@ def git(*args):
     cmd = ["git", "-c", f"safe.directory={PROJECT_DIR}", "-C", str(PROJECT_DIR), *args]
     return subprocess.run(cmd, capture_output=True, text=True)
 
+def report_changes(old):
+    """After the code changed: hint when the launcher itself was updated."""
+    changed = git("diff", "--name-only", old, "HEAD").stdout.split()
+    if any(Path(name).name in WATCHED_FILES for name in changed) and not os.environ.get("REAPPER_CHAIN"):
+        print("Launcher files changed. Run: sudo rip -update")
+    print("Restart the web UI to load the new code.")
 
-def cmd_self_update(force=False, assume_yes=False):
-    if not (PROJECT_DIR / ".git").exists():
-        print("This folder is not a git clone, so it cannot update itself.")
+
+def switch_to_beta(current, force=False, assume_yes=False):
+    """Switch this clone to the Beta branch of GitHub and make it follow it."""
+    where = "no branch (detached HEAD)" if current in ("", "HEAD") else f"branch {current}"
+    print(f"On {where}, switching to {BETA_BRANCH}")
+    fetched = git("fetch", "--prune", "origin")
+    if fetched.returncode != 0:
+        print(f"Could not reach GitHub: {fetched.stderr.strip()}")
         return 1
-    if is_root() and PROJECT_DIR.stat().st_uid != 0:
-        print("This folder belongs to another user. Run without sudo so the files keep their owner.")
+    remote = f"origin/{BETA_BRANCH}"
+    if git("rev-parse", "--verify", "-q", remote).returncode != 0:
+        print(f"{remote} does not exist on GitHub, nothing to switch to.")
         return 1
+
+    dirty = git("status", "--porcelain", "--untracked-files=no").stdout.strip()
+    if dirty and not force:
+        print("\nYou have local changes in tracked files:")
+        print(dirty)
+        print("Commit or stash them first, or run: rip -update -b --force (discards them)")
+        return 1
+
+    local_beta = git("rev-parse", "--verify", "-q", f"refs/heads/{BETA_BRANCH}").returncode == 0
+    diverged = False
+    if local_beta:
+        ahead = int(git("rev-list", "--left-right", "--count", f"{BETA_BRANCH}...{remote}").stdout.split()[0])
+        diverged = ahead > 0
+        if diverged and not force:
+            print(f"\nYour local {BETA_BRANCH} has {ahead} commit(s) that are not on GitHub.")
+            print("To make it match GitHub exactly, run: rip -update -b --force")
+            print("That discards those commits and edits to tracked files. User/ is never touched.")
+            return 1
+
+    print(f"\nLatest commits on {remote}:")
+    print(git("log", "--oneline", "-5", remote).stdout.rstrip())
+    if not assume_yes:
+        warning = " This discards local commits and changes." if (force and (dirty or diverged)) else ""
+        if ask(f"\nSwitch to {BETA_BRANCH}?{warning} [y/N] ") not in ("y", "yes"):
+            print("Nothing changed.")
+            return 0
+
+    old = git("rev-parse", "HEAD").stdout.strip()
+    keep = ["-f"] if force else []
+    if local_beta and force:
+        result = git("checkout", *keep, "-B", BETA_BRANCH, remote)
+    elif local_beta:
+        result = git("checkout", BETA_BRANCH)
+        if result.returncode == 0:
+            result = git("merge", "--ff-only", remote)
+    else:
+        result = git("checkout", *keep, "-b", BETA_BRANCH, "--track", remote)
+    if result.returncode != 0:
+        print(f"Switch failed: {result.stderr.strip() or result.stdout.strip()}")
+        return 1
+    git("branch", f"--set-upstream-to={remote}", BETA_BRANCH)
+
+    print(f"\nSwitched to {BETA_BRANCH}.")
+    print(f"From now on 'rip -update' follows {BETA_BRANCH}.")
+    if current not in ("", "HEAD"):
+        print(f"To go back: git switch {current}")
+    report_changes(old)
+    return 0
+
+def cmd_self_update(force=False, assume_yes=False, beta=False):
 
     branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        if beta and branch != BETA_BRANCH:
+        return switch_to_beta(branch, force, assume_yes)
     if branch in ("", "HEAD"):
         print("No branch is checked out (detached HEAD). Run: git switch <branch>")
         return 1
@@ -137,11 +202,8 @@ def cmd_self_update(force=False, assume_yes=False):
         print(f"Update failed: {result.stderr.strip() or result.stdout.strip()}")
         return 1
 
-    changed = git("diff", "--name-only", old, "HEAD").stdout.split()
     print("\nUpdated.")
-    if any(Path(name).name in WATCHED_FILES for name in changed) and not os.environ.get("REAPPER_CHAIN"):
-        print("Launcher files changed. Run: sudo rip -update")
-    print("Restart the web UI to load the new code.")
+    report_changes(old)
     return 0
 
 def music_folders():
@@ -308,14 +370,14 @@ def main(argv):
     flags = set(argv[1:])
     yes = bool(flags & {"-y", "--yes"})
     if command in ("self-update", "upgrade"):
-        return cmd_self_update(force="--force" in flags, assume_yes=yes)
+        return cmd_self_update(force="--force" in flags, assume_yes=yes, beta=bool(flags & {"-b", "--beta"}))
     if command == "uninstall":
         if flags & {"-f", "--full"}:
             return cmd_purge(assume_yes=yes)
         return cmd_uninstall(assume_yes=yes)
     if command == "purge":
         return cmd_purge(assume_yes=yes)
-    print("Usage: Manage.py [self-update [--force] [-y] | uninstall [-f] [-y]]")
+    print("Usage: Manage.py [self-update [-b] [--force] [-y] | uninstall [-f] [-y]]")
     return 2
 
 
