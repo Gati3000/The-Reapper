@@ -19,6 +19,7 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from App.Paths import *
 
 USER_AGENT = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
