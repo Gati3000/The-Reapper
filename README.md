@@ -4,18 +4,8 @@ Web interface for downloading premium music with lyrics and covers. It wraps [ap
 
 ## Requirements
 
-- Linux: Debian, Ubuntu or WSL
-- Root access (needed for installing and updating components)
-- Python 3.8+
-
-Program installs for you:
--Go
--Gpac
--Bento4
--ffmpeg
--Flask
--PyYAML
--Wrapper and AMD
+- Linux: Debian, Ubuntu or WSL, with root access and Python 3.8+
+- Installed for you: Go, GPAC, Bento4, ffmpeg, Flask, PyYAML, the wrapper and the downloader
 
 ## Installation
 
@@ -23,63 +13,38 @@ Program installs for you:
 git clone https://github.com/Gati3000/The-Reapper.git
 cd The-Reapper
 sudo python3 App/Launcher/Start.py update
-```
-
-Optional: add the `rip` command.
-
-```bash
 sudo ln -s "$(pwd)/App/Launcher/rip" /usr/local/bin/rip
 ```
 
-## Usage
+The last line adds the optional `rip` command used below.
+
+## Commands
 
 | Command | What it does |
 | --- | --- |
-| `rip` (or `rip -up`, `rip run`) | Checks the installation and starts the web UI |
-| `rip check` | Only reports what is missing or outdated |
-| `sudo rip update` | Updates the project code from GitHub, then lists missing and outdated components, asks, and installs or updates them |
-| `sudo rip update -y` | Same, without the questions |
-| `rip upgrade` | Updates only the project code (`git` fast-forward). Add `--force` to discard local changes and match GitHub exactly |
-| `sudo rip -rm` | Removes the program, keeps your settings and downloads in a backup folder (see [Uninstalling](#uninstalling)) |
-| `sudo rip -rm -f` | Removes everything including your settings, downloads are still kept in a backup |
+| `rip -h` | Shows the help (also shown by `rip` alone) |
+| `rip -up` | Checks the installation and starts the web UI |
+| `rip -check` | Only reports what is missing or outdated |
+| `sudo rip -update` | Updates the project code, then installs or updates components after asking |
+| `sudo rip -update -y` | Same, without questions |
+| `sudo rip -update -b` | Switches to the Beta branch, then updates |
+| `rip upgrade` | Updates only the project code. Add `--force` to discard local changes, `-b` to switch to Beta, `-y` to skip questions |
+| `rip -log` | Starts writing `User/reapper.log` (works in a running UI) |
+| `rip -log -stop` | Stops writing the log file |
+| `sudo rip -rm` | Removes the program, keeps `User/` settings and music in a backup folder |
+| `sudo rip -rm -f` | Removes everything including settings, music stays in a backup (`rip purge` does the same) |
 
-`-update`, `install` and `-check` work as aliases of `update` and `check`.
-
-Without the command: `python3 Main.py` starts the UI, `sudo python3 App/Launcher/Start.py update` installs and updates components, and `python3 App/Launcher/Manage.py` handles self-update and removal.
-
-Without the command: `python3 Main.py` starts the UI and `sudo python3 App/Launcher/Start.py update` updates.
-
-The UI listens on `http://<host>:5000`. Change it with the `REAPPER_HOST` and `REAPPER_PORT` environment variables, for example `REAPPER_HOST=127.0.0.1` to keep it local. The pages are responsive and work on phones.
-
-1. Log in to the wrapper on the main page (email, password and the 2FA code if your account asks for it). You can save the login for automatic sign-in on the next start.
-2. Paste an album, playlist or song link.
-3. Pick the format: standard download (ALAC), or turn on **Special audio** and choose **ATMOS** or **AAC**. Your choice is remembered.
-4. Follow the live logs. The **Settings** page edits the downloader configuration.
-
-> **Security:** the UI has no login of its own and listens on all interfaces by default. Run it only on a network you trust, or set `REAPPER_HOST=127.0.0.1`, or put it behind a reverse proxy with authentication. Saved logins are only base64 encoded (not encrypted) and the file is readable by its owner only (`chmod 600`).
+Aliases: `run` = `-up`, `check` = `-check`, `update` and `install` = `-update`, `uninstall` = `-rm`, `log` = `-log`. Without `rip` you can use `python3 Main.py` to start the UI, `sudo python3 App/Launcher/Start.py update` to update components and `python3 App/Launcher/Manage.py` for self-update and removal.
 
 ## Your data
 
-Everything personal lives in `User/`:
+Everything personal lives in `User/`: `config.yaml` (downloader settings, created from `Example-Config.yaml`), `.credentials` (saved login, optional), `prefs.json` (main page preferences) and `reapper.log` (only while `rip -log` is on).
 
-- `config.yaml`: downloader settings. Created from `Example-Config.yaml` on first run and edited on the Settings page. The downloader reads it through a link, so there is only one copy.
-- `.credentials`: saved login, only if you choose to save it.
-- `prefs.json`: format preferences from the main page.
+## Updating and uninstalling
 
-Fill in `media-user-token` and `storefront` in the settings before downloading.
+`rip -update` checks Go, the downloader, the wrapper, Bento4, GPAC and system packages. Sources and versions are pinned in `App/Manifest.ini` and fall back to `App/Defaults.ini`. If launcher files changed, run `sudo rip -update` once more, then restart the UI.
 
-## Updating
-
-`sudo rip update` first updates the project code, then checks Go, the downloader branch, the wrapper release, Bento4, GPAC and the system packages (git, ffmpeg, wget, Flask, PyYAML). Versions of Bento4, GPAC and the download sources are pinned in `App/Launcher/Manifest.ini`; change a value there and run `rip update` to apply it.
-
-If launcher files changed in the update, run `sudo rip update` once more so the new version of the launcher is used. Restart the web UI to load new code.
-
-## Uninstalling
-
-- `sudo rip -rm` removes the program folder, the downloader, the wrapper, Bento4 and the links in `/usr/local/bin`. Your `User/` folder and downloads that live inside the project are moved to `~/The-Reapper-backup-<date>`.
-- `sudo rip -rm -f` does the same but also deletes your settings and saved login, with no backup of them. You have to type `delete` to confirm.
-
-Go, GPAC, ffmpeg and other system packages are not removed because other programs may use them. To restore settings after a fresh clone, copy the backed up `User/` folder into the new project folder.
+`rip -rm` removes the program folder, downloader, wrapper, Bento4 and the links in `/usr/local/bin`. Your `User/` folder and downloads inside the project go to `~/The-Reapper-backup-<date>`. `rip -rm -f` also deletes settings and saved login (you type `delete` to confirm). Go, GPAC, ffmpeg and other system packages stay.
 
 ### Credits
 
@@ -92,3 +57,4 @@ Go, GPAC, ffmpeg and other system packages are not removed because other program
 ## Disclaimer
 
 This tool is for educational purposes and personal use only. Respect Apple's Terms of Service and only download content you have the legal right to access. The authors are not responsible for any misuse of the underlying tools.
+

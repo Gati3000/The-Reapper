@@ -13,62 +13,42 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+from urllib.parse import urlparse
 import zipfile
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
-# Zrobić osobny plik na te ścieżki bo coś tu ciasno i będzie wygodniej edytować na przyszłość
-LAUNCHER_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = LAUNCHER_DIR.parent.parent
-USER_DIR = PROJECT_DIR / "User"
-MANIFEST_FILE = LAUNCHER_DIR / "Manifest.ini"
-EXAMPLE_CONFIG = LAUNCHER_DIR / "Example-Config.yaml"
-CONFIG_FILE = USER_DIR / "config.yaml"
-CREDENTIALS_FILE = USER_DIR / ".credentials"
-PREFS_FILE = USER_DIR / "prefs.json"
-BENTO4_DIR = PROJECT_DIR / "bento4"
-WRAPPER_DIR = PROJECT_DIR / "wrapper"
-AMD_DIR = PROJECT_DIR / "apple-music-downloader"
-AMD_CONFIG = AMD_DIR / "config.yaml"
-GO_ROOT = Path("/usr/local/go")
-SYSTEM_BIN = Path("/usr/local/bin")
-RIP_SCRIPT = LAUNCHER_DIR / "rip"
+from App.Paths import *
+
 USER_AGENT = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
 STATUS_OK, STATUS_MISSING, STATUS_OUTDATED, STATUS_NEWER = "ok", "missing", "outdated", "newer"
 
-# Zrobić osobny plik .ini dla "deafults" żeby dać stabilne na pewno działąjące wersję
-# na przyszłość będzie wtedy jak się rozrośnie
 MANIFEST_SECTION = "manifest"
-_DEFAULTS = {
-    "go_min_version": "1.23.1",
-    "go_version_url": "https://go.dev/VERSION?m=text",
-    "go_download_url": "https://go.dev/dl/{version}.linux-{arch}.tar.gz",
-    "gpac_ver": "v26.07.0",
-    "gpac_repo": "https://github.com/gpac/gpac.git",
-    "amd_repo": "https://github.com/zhaarey/apple-music-downloader",
-    "amd_branch": "v1",
-    "bento4_url": "https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-641.x86_64-unknown-linux.zip",
-    "wrapper_url": "https://github.com/WorldObservationLog/wrapper/releases/download/wrapper.x86_64.latest/Wrapper.x86_64.latest.zip",
-    "wrapper_url_arm64": "https://github.com/WorldObservationLog/wrapper/releases/download/wrapper.arm64.latest/Wrapper.arm64.latest.zip",
-    "ffmpeg_static_url": "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-{arch}-static.tar.xz",
-    "apt_packages": "git ffmpeg wget python3-flask python3-yaml",
-}
 
-def load_manifest():
-    """Return the manifest values; Manifest.ini overrides the built-in defaults."""
-    values = dict(_DEFAULTS)
+def _read_ini(path):
     cp = configparser.ConfigParser(interpolation=None)
     try:
-        if not cp.read(MANIFEST_FILE) or not cp.has_section(MANIFEST_SECTION):
-            print(f"WARN: no usable [{MANIFEST_SECTION}] in {MANIFEST_FILE.name}, using defaults")
-            return values
-    except configparser.Error as e:
-        print(f"WARN: cannot parse {MANIFEST_FILE.name}: {e}. Using defaults")
+        if not cp.read(path) or not cp.has_section(MANIFEST_SECTION):
+            return None
+    except configparser.Error:
+        return None
+    return {key: val.strip() for key, val in cp[MANIFEST_SECTION].items() if val.strip()}
+
+DEFAULTS = _read_ini(DEFAULTS_FILE)
+if not DEFAULTS:
+    raise SystemExit(f"ERROR: {DEFAULTS_FILE.name} is missing or broken. Restore it with: rip upgrade --force")
+
+def load_manifest():
+    """Return the manifest values; Manifest.ini overrides Defaults.ini."""
+    values = dict(DEFAULTS)
+    override = _read_ini(MANIFEST_FILE)
+    if override is None:
+        print(f"WARN: no usable [{MANIFEST_SECTION}] in {MANIFEST_FILE.name}, using {DEFAULTS_FILE.name}")
         return values
-    for key, val in cp[MANIFEST_SECTION].items():
-        if key in values and val.strip():
-            values[key] = val.strip()
+    for key, val in override.items():
+        if key in values:
+            values[key] = val
     return values
 
 MANIFEST = load_manifest()
@@ -81,9 +61,9 @@ def fmt(version):
     return ".".join(map(str, version)) if version else "none"
 
 try:
-    GO_MIN_VERSION = parse_version(MANIFEST["go_min_version"]) or parse_version(_DEFAULTS["go_min_version"])
+    GO_MIN_VERSION = parse_version(MANIFEST["go_min_version"]) or parse_version(DEFAULTS["go_min_version"])
 except ValueError:
-    GO_MIN_VERSION = parse_version(_DEFAULTS["go_min_version"])
+    GO_MIN_VERSION = parse_version(DEFAULTS["go_min_version"])
 
 ARCH = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine())
 
@@ -110,6 +90,55 @@ def download(url, dest, timeout=120):
     req = urllib.request.Request(url, headers=USER_AGENT)
     with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as out:
         shutil.copyfileobj(resp, out)
+
+def file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+def verify_sha256(path, expected, label):
+    actual = file_sha256(path)
+    if not expected:
+        print(f"WARN: no checksum available for {label}, its SHA-256 is {actual}")
+        return
+    if actual != expected.strip().lower():
+        raise RuntimeError(f"Checksum mismatch for {label}: expected {expected}, got {actual}")
+    print(f"INFO: {label} SHA-256 verified")
+
+def fetch_json(url, timeout=20):
+    text = fetch_text(url, timeout) if url else None
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+def go_expected_sha(filename):
+    releases = fetch_json(MANIFEST.get("go_checksums_url"))
+    if not isinstance(releases, list):
+        return None
+    for release in releases:
+        for entry in release.get("files", []):
+            if entry.get("filename") == filename:
+                return entry.get("sha256")
+    return None
+
+def github_asset_sha(download_url):
+    parts = urlparse(download_url).path.strip("/").split("/")
+    if len(parts) < 6 or parts[2:4] != ["releases", "download"]:
+        return None
+    owner, repo, tag, asset = parts[0], parts[1], parts[4], parts[5]
+    release = fetch_json(f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}")
+    if not isinstance(release, dict):
+        return None
+    for entry in release.get("assets", []):
+        digest = entry.get("digest") or ""
+        if entry.get("name") == asset and digest.startswith("sha256:"):
+            return digest.split(":", 1)[1]
+    return None
 
 def fetch_text(url, timeout=20):
     try:
@@ -245,6 +274,7 @@ def install_go():
     try:
         print(f"INFO: Downloading {url}")
         download(url, archive)
+        verify_sha256(archive, go_expected_sha(f"{latest}.linux-{ARCH}.tar.gz"), "Go")
         staging = Path(tempfile.mkdtemp(prefix="go-new-", dir=GO_ROOT.parent))
         try:
             with tarfile.open(archive, "r:gz") as tar:
@@ -283,12 +313,13 @@ def install_gpac():
     if not shutil.which("MP4Box"):
         raise RuntimeError("GPAC was built but MP4Box is not on PATH")
 
-def _extract_zip(url, target, label):
+def _extract_zip(url, target, label, sha256=None):
     """Download a zip into target; target is removed again if anything fails."""
     zip_path = PROJECT_DIR / f"{label}.zip"
     try:
         print(f"INFO: Downloading {label} from {url}")
         download(url, zip_path, timeout=180)
+        verify_sha256(zip_path, sha256, label)
         target.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(zip_path) as z:
             z.extractall(target)
@@ -300,7 +331,7 @@ def _extract_zip(url, target, label):
 
 def install_bento4():
     shutil.rmtree(BENTO4_DIR, ignore_errors=True)
-    _extract_zip(MANIFEST["bento4_url"], BENTO4_DIR, "bento4")
+    _extract_zip(MANIFEST["bento4_url"], BENTO4_DIR, "bento4", MANIFEST.get("bento4_sha256"))
     bin_dir = bento4_bin_dir()
     if not bin_dir:
         raise RuntimeError("Bento4 archive has no bin directory")
@@ -329,7 +360,7 @@ def _remote_meta(url):
 def install_wrapper():
     meta = _remote_meta(wrapper_url())
     shutil.rmtree(WRAPPER_DIR, ignore_errors=True)
-    _extract_zip(wrapper_url(), WRAPPER_DIR, "wrapper")
+    _extract_zip(wrapper_url(), WRAPPER_DIR, "wrapper", github_asset_sha(wrapper_url()))
     binary = WRAPPER_DIR / "wrapper"
     if binary.exists():
         binary.chmod(binary.stat().st_mode | 0o755)
@@ -337,6 +368,29 @@ def install_wrapper():
         print("WARN: Wrapper binary not found after extraction")
     if meta:
         (WRAPPER_DIR / ".meta.json").write_text(json.dumps(meta))
+
+def amd_build_stamp():
+    rev = run(["git", "-C", str(AMD_DIR), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    go_bin = shutil.which("go") or str(GO_ROOT / "bin" / "go")
+    try:
+        version = run([go_bin, "version"], capture_output=True, text=True, timeout=15).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        version = ""
+    return f"{rev}|{version}"
+
+def build_downloader(only_if_stale=False):
+    stamp = amd_build_stamp()
+    if only_if_stale and AMD_BINARY.exists():
+        try:
+            if AMD_BUILD_FILE.read_text().strip() == stamp:
+                return
+        except OSError:
+            pass
+    go_bin = shutil.which("go") or str(GO_ROOT / "bin" / "go")
+    print("INFO: Building the downloader (go build)")
+    run([go_bin, "build", "-o", str(AMD_BINARY), "main.go"], cwd=AMD_DIR, check=True)
+    AMD_BINARY.chmod(0o755)
+    AMD_BUILD_FILE.write_text(stamp)
 
 def install_downloader():
     branch = MANIFEST["amd_branch"]
@@ -349,6 +403,7 @@ def install_downloader():
         run([*git, "checkout", "-B", branch, f"origin/{branch}", "--force"], check=True, timeout=60)
         run([*git, "reset", "--hard", f"origin/{branch}"], check=True, timeout=60)
     prepare_user_data()
+    build_downloader()
 
 @dataclass
 class Component:
@@ -425,12 +480,24 @@ def _scan_downloader(online):
             return Component("amd", "Downloader", STATUS_NEWER, f"{behind} new commit(s) on {branch}", install_downloader)
     return Component("amd", "Downloader", STATUS_OK, f"branch {branch}")
 
+def _scan_amd_build():
+    if not (AMD_DIR / "main.go").exists():
+        return Component("amd-build", "Downloader build", STATUS_OK, "waits for the downloader")
+    try:
+        fresh = AMD_BINARY.exists() and AMD_BUILD_FILE.read_text().strip() == amd_build_stamp()
+    except OSError:
+        fresh = False
+    if fresh:
+        return Component("amd-build", "Downloader build", STATUS_OK, "built")
+    return Component("amd-build", "Downloader build", STATUS_NEWER, "binary missing or out of date (go run is used meanwhile)",
+                     lambda: build_downloader(only_if_stale=True))
+
 def scan(online=True):
     """Inspect every component and return a list of Component objects."""
     parts = _missing_system_parts()
     system = (Component("system", "System packages", STATUS_MISSING, "missing: " + ", ".join(parts), install_system_packages)
               if parts else Component("system", "System packages", STATUS_OK, "installed"))
-    return [system, _scan_go(online), _scan_gpac(), _scan_bento4(), _scan_wrapper(online), _scan_downloader(online), _scan_rip()]
+    return [system, _scan_go(online), _scan_gpac(), _scan_bento4(), _scan_wrapper(online), _scan_downloader(online), _scan_amd_build(), _scan_rip()]
 
 def check():
     """Offline check used by Main.py; returns the components that block startup."""
@@ -537,14 +604,6 @@ def _scan_rip():
     if link.exists():
         return Component("rip", "rip command", STATUS_OK, "/usr/local/bin/rip is a regular file, left alone")
     return Component("rip", "rip command", STATUS_NEWER, "not linked", install_rip)
-
-def verify_sha256(path, expected):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    if h.hexdigest() != expected.lower():
-        raise RuntimeError(f"Checksum mismatch for {path}")
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

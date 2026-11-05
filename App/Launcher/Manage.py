@@ -8,14 +8,10 @@ import sys
 import time
 from pathlib import Path
 
-LAUNCHER_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = LAUNCHER_DIR.parent.parent
-USER_DIR = PROJECT_DIR / "User"
-AMD_DIR = PROJECT_DIR / "apple-music-downloader"
-CONFIG_FILE = USER_DIR / "config.yaml"
-SYSTEM_BIN = Path("/usr/local/bin")
-SAVE_FOLDER_KEYS = ("alac-save-folder", "atmos-save-folder", "aac-save-folder", "mv-save-folder")
-WATCHED_FILES = ("Manifest.ini", "Start.py", "Manage.py")
+from App.Paths import LAUNCHER_DIR, PROJECT_DIR, USER_DIR, AMD_DIR, CONFIG_FILE, SYSTEM_BIN
+
+SAVE_FOLDER_KEYS = ("alac-save-folder", "atmos-save-folder", "aac-save-folder", "flac-save-folder", "wav-save-folder", "mp3-save-folder", "mv-save-folder")
+WATCHED_FILES = ("Manifest.ini", "Defaults.ini", "Paths.py", "Start.py", "Manage.py")
 BETA_BRANCH = "Beta"
 
 

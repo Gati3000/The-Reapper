@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="{{ language }}" data-bs-theme="{{ theme }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,39 +7,65 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='Icon.svg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='Icon-180.png') }}">
     <title>The Reapper</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='Theme.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/axios.min.js') }}"></script>
 </head>
 <body>
 
 <div class="container-fluid p-3">
-    <div class="text-center mb-4">
-        <img src="{{ url_for('static', filename='Icon.svg') }}" alt="" class="app-logo mb-2">
-        <h1 class="app-title mb-2">The Reapper</h1>
-        <small class="text-muted d-block mb-2">by Gati</small>
-        <p class="lead text-muted mb-3">
-            A simple web interface for downloading your favorite Apple Music tracks
-        </p>
-        <div class="mb-3">
-            <a href="https://github.com/Gati3000/The-Reapper" target="_blank" class="btn btn-outline-light btn-sm">
-                Star on GitHub
-            </a>
-            <a href="https://github.com/lalit22km/alac-rip" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm ms-2">
-                Star Original Repository
-            </a>
+    <div class="top-grid mb-4">
+        <div class="top-left">
+            <div id="download-folders-info" class="folders-list" style="display: none;">
+                <div class="folders-title">Download Locations</div>
+                <div><strong>ALAC:</strong> <span id="alac-folder"></span></div>
+                <div><strong>FLAC:</strong> <span id="flac-folder"></span></div>
+                <div><strong>WAV:</strong> <span id="wav-folder"></span></div>
+                <div><strong>ATMOS:</strong> <span id="atmos-folder"></span></div>
+                <div><strong>AAC:</strong> <span id="aac-folder"></span></div>
+                <div><strong>MP3:</strong> <span id="mp3-folder"></span></div>
+            </div>
         </div>
-    </div>
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <button class="btn btn-outline-light" onclick="window.location.href='/settings'">Settings</button>
+        <div class="top-center text-center">
+            <img src="{{ url_for('static', filename='Icon.svg') }}" alt="" class="app-logo mb-2">
+            <h1 class="app-title mb-2">The Reapper</h1>
+            <small class="text-muted d-block mb-2">by Gati</small>
+            <p class="lead text-muted mb-3">
+                A simple web interface for downloading your favorite Apple Music tracks
+            </p>
+            <div>
+                <a href="https://github.com/Gati3000/The-Reapper" target="_blank" class="btn btn-outline-light btn-sm">
+                    Star on GitHub
+                </a>
+                <a href="https://github.com/lalit22km/alac-rip" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm ms-2">
+                    Star Original Repository
+                </a>
+            </div>
         </div>
-        <div>
-            <span id="wrapper-indicator"
-                  class="badge {{ 'bg-success' if wrapper_running else 'bg-danger' }}">
-                Wrapper: {{ 'Running' if wrapper_running else 'Stopped' }}
-            </span>
+
+        <div class="top-right">
+            <div class="top-controls">
+                <button id="theme-btn" class="btn btn-outline-light" title="Switch between dark and light mode"></button>
+                <div class="lang-dropdown">
+                    <button id="lang-btn" class="btn btn-outline-light" aria-haspopup="true" aria-expanded="false">
+                        Language: <span id="lang-label">{{ 'Polski' if language == 'pl' else 'English' }}</span> &#9662;
+                    </button>
+                    <ul id="lang-menu" class="lang-menu d-none">
+                        <li><button data-lang="en" class="{{ 'active' if language == 'en' else '' }}">English</button></li>
+                        <li><button data-lang="pl" class="{{ 'active' if language == 'pl' else '' }}">Polski</button></li>
+                    </ul>
+                </div>
+                <button class="btn btn-outline-light btn-settings" onclick="window.location.href='/settings'">Settings</button>
+            </div>
+            <div class="status-stack">
+                <span id="wrapper-indicator" class="status-badge {{ 'status-ok' if wrapper_running else 'status-err' }}">
+                    Wrapper: {{ 'Running' if wrapper_running else 'Stopped' }}
+                </span>
+                <span id="amd-indicator" class="status-badge status-{{ {'ready': 'info', 'downloading': 'ok', 'paused': 'warn', 'missing': 'err'}[amd_state] }}">
+                    AMD: {{ {'ready': 'Ready', 'downloading': 'Downloading', 'paused': 'Paused', 'missing': 'Missing'}[amd_state] }}
+                </span>
+            </div>
         </div>
     </div>
 
@@ -76,21 +102,17 @@
         </div>
     </div>
 
-    <div class="text-center mb-4">
-        <input id="link-box" type="text" class="form-control form-control-lg mb-3 input-wide mx-auto"
+    <div class="link-area mx-auto mb-4">
+        <input id="link-box" type="text" class="form-control form-control-lg mb-3"
                placeholder="Paste Apple Music link here">
 
-        <div class="d-flex justify-content-center align-items-center gap-4 mb-3">
+        <div class="d-flex justify-content-center align-items-center mb-3">
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="special-audio" checked>
                 <label class="form-check-label" for="special-audio">Special Audio</label>
             </div>
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="select-all">
-                <label class="form-check-label" for="select-all">Download all</label>
-            </div>
         </div>
-        
+
         <div class="d-flex justify-content-center mb-3">
             <div id="format-options" class="format-box">
                 <div class="form-check form-check-inline">
@@ -104,26 +126,12 @@
             </div>
         </div>
 
-        <div class="mt-3">
+        <div class="download-row">
+            <button id="restart-btn" class="btn btn-outline-light restart-btn d-none" title="Restart download from the beginning">&#8635;</button>
             <button id="download-btn" class="btn btn-primary btn-lg" disabled>Download</button>
-        </div>
-    </div>
-
-    <div class="row mb-4" id="download-folders-info" style="display: none;">
-        <div class="col-12">
-            <div class="alert alert-info">
-                <h6 class="mb-2">Download Locations:</h6>
-                <div class="row">
-                    <div class="col-md-4">
-                        <small><strong>ALAC:</strong> <span id="alac-folder"></span></small>
-                    </div>
-                    <div class="col-md-4">
-                        <small><strong>ATMOS:</strong> <span id="atmos-folder"></span></small>
-                    </div>
-                    <div class="col-md-4">
-                        <small><strong>AAC:</strong> <span id="aac-folder"></span></small>
-                    </div>
-                </div>
+            <div class="form-check download-all">
+                <input class="form-check-input" type="checkbox" id="select-all">
+                <label class="form-check-label" for="select-all">Download all</label>
             </div>
         </div>
     </div>
@@ -198,7 +206,7 @@ document.getElementById("submit-login").addEventListener("click", () => {
     document.getElementById("password").value = "";
     
     const wrapperLogs = document.getElementById("wrapper-logs");
-    wrapperLogs.innerHTML += `<div>> Attempting to login with $(esc{email})...</div>`;
+    wrapperLogs.innerHTML += `<div>> Attempting to login with ${esc(email)}...</div>`;
     wrapperLogs.scrollTop = wrapperLogs.scrollHeight;
 
     axios.post("/login_wrapper", new URLSearchParams({email, password}))
@@ -216,16 +224,47 @@ document.getElementById("submit-login").addEventListener("click", () => {
         });
 });
 
-document.getElementById("download-btn").addEventListener("click", () => {
+const downloadBtn = document.getElementById("download-btn");
+const restartBtn = document.getElementById("restart-btn");
+let downloadState = "idle";
+
+function renderDownloadButton(data) {
+    const state = data.download_running ? (data.download_paused ? "paused" : "running") : "idle";
+    downloadState = state;
+    const labels = {idle: "Download", running: "Stop downloading", paused: "Resume"};
+    const styles = {idle: "btn-primary", running: "btn-warning", paused: "btn-success"};
+    downloadBtn.className = `btn btn-lg ${styles[state]}`;
+    downloadBtn.textContent = labels[state];
+    downloadBtn.disabled = state === "idle" && !data.wrapper_running;
+    restartBtn.classList.toggle("d-none", state !== "paused");
+}
+
+function logDownloader(cls, text) {
+    const logs = document.getElementById("downloader-logs");
+    logs.innerHTML += `<div class="${cls}"> ${esc(text)}</div>`;
+    logs.scrollTop = logs.scrollHeight;
+}
+
+function postDownloadAction(url) {
+    axios.post(url)
+        .then(res => {
+            if (res.data.status !== "ok") logDownloader("log-err", res.data.msg);
+            updateLogs();
+        })
+        .catch(() => logDownloader("log-err", "Request failed"));
+}
+
+downloadBtn.addEventListener("click", () => {
+    if (downloadState === "running") return postDownloadAction("/pause_download");
+    if (downloadState === "paused") return postDownloadAction("/resume_download");
+
     const link = document.getElementById("link-box").value;
     const format = document.querySelector("input[name='format']:checked")?.value || "ATMOS";
     const specialAudio = document.getElementById("special-audio").checked;
     const selectAll = document.getElementById("select-all").checked;
-    
+
     if (!link.trim()) {
-        const logs = document.getElementById("downloader-logs");
-        logs.innerHTML += `<div class="log-err"> Please enter a valid Apple Music URL</div>`;
-        logs.scrollTop = logs.scrollHeight;
+        logDownloader("log-err", "Please enter a valid Apple Music URL");
         return;
     }
 
@@ -238,21 +277,18 @@ document.getElementById("download-btn").addEventListener("click", () => {
 
     axios.post("/download", formData)
         .then(res => {
-            const logs = document.getElementById("downloader-logs");
             if (res.data.status === "ok") {
-                logs.innerHTML += `<div class="log-ok"> ${esc(res.data.msg)}</div>`;
-                document.getElementById("download-btn").disabled = true;
-                document.getElementById("download-btn").textContent = "Downloading...";
+                logDownloader("log-ok", res.data.msg);
             } else {
-                logs.innerHTML += `<div class="log-err"> ${esc(res.data.msg)}</div>`;
+                logDownloader("log-err", res.data.msg);
             }
-            logs.scrollTop = logs.scrollHeight;
+            updateLogs();
         })
-        .catch(err => {
-            const logs = document.getElementById("downloader-logs");
-            logs.innerHTML += `<div class="log-err"> Failed to start download</div>`;
-            logs.scrollTop = logs.scrollHeight;
-        });
+        .catch(() => logDownloader("log-err", "Failed to start download"));
+});
+
+restartBtn.addEventListener("click", () => {
+    if (confirm("Restart this download from the beginning?")) postDownloadAction("/restart_download");
 });
 
 document.getElementById("stop-wrapper-btn").addEventListener("click", () => {
@@ -270,20 +306,25 @@ document.getElementById("stop-wrapper-btn").addEventListener("click", () => {
 
 function updateWrapperStatus(running) {
     const indicator = document.getElementById("wrapper-indicator");
-    const downloadBtn = document.getElementById("download-btn");
     const stopBtn = document.getElementById("stop-wrapper-btn");
     
     if (running) {
-        indicator.className = "badge bg-success";
+        indicator.className = "status-badge status-ok";
         indicator.innerText = "Wrapper: Running";
-        downloadBtn.disabled = false;
         stopBtn.classList.remove("d-none");
     } else {
-        indicator.className = "badge bg-danger";
+        indicator.className = "status-badge status-err";
         indicator.innerText = "Wrapper: Stopped";
-        downloadBtn.disabled = true;
         stopBtn.classList.add("d-none");
     }
+}
+
+function updateAmdStatus(state) {
+    const indicator = document.getElementById("amd-indicator");
+    const labels = {ready: "Ready", downloading: "Downloading", paused: "Paused", missing: "Missing"};
+    const styles = {ready: "status-info", downloading: "status-ok", paused: "status-warn", missing: "status-err"};
+    indicator.className = `status-badge ${styles[state] || "status-err"}`;
+    indicator.innerText = `AMD: ${labels[state] || "Missing"}`;
 }
 
 function renderLogs(box, lines, cls) {
@@ -300,7 +341,6 @@ function updateLogs() {
     axios.get("/get_logs").then(res => {
         const wrapperBox = document.getElementById("wrapper-logs");
         const downloaderBox = document.getElementById("downloader-logs");
-        const downloadBtn = document.getElementById("download-btn");
 
         renderLogs(wrapperBox, res.data.wrapper, l =>
             l.includes("Ready for downloads") ? "log-ok"
@@ -311,15 +351,10 @@ function updateLogs() {
             : (l.includes("failed") || l.includes("Error")) ? "log-err"
             : l.includes("Starting") ? "log-info" : "");
 
-        if (res.data.download_running) {
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = "Downloading...";
-        } else if (res.data.wrapper_running) {
-            downloadBtn.disabled = false;
-            downloadBtn.textContent = "Download";
-        }
+        renderDownloadButton(res.data);
 
         updateWrapperStatus(res.data.wrapper_running);
+        updateAmdStatus(res.data.amd_state);
 
         const modal = document.getElementById('twofa-modal');
         if (res.data.wrapper_needs_2fa) {
@@ -343,8 +378,11 @@ function loadDownloadFolders() {
         .then(res => {
             if (res.data.status === 'ok') {
                 document.getElementById('alac-folder').textContent = res.data.folders.alac;
+                document.getElementById('flac-folder').textContent = res.data.folders.flac;
+                document.getElementById('wav-folder').textContent = res.data.folders.wav;
                 document.getElementById('atmos-folder').textContent = res.data.folders.atmos;
                 document.getElementById('aac-folder').textContent = res.data.folders.aac;
+                document.getElementById('mp3-folder').textContent = res.data.folders.mp3;
                 document.getElementById('download-folders-info').style.display = 'block';
             }
         })
@@ -393,6 +431,45 @@ formatOptions.querySelectorAll('input[type="radio"]').forEach(r =>
 );
 
 loadAudioPrefs();
+
+const themeBtn = document.getElementById('theme-btn');
+const langBtn = document.getElementById('lang-btn');
+const langMenu = document.getElementById('lang-menu');
+
+function renderThemeButton() {
+    const dark = document.documentElement.getAttribute('data-bs-theme') !== 'light';
+    themeBtn.textContent = dark ? 'Light mode' : 'Dark mode';
+}
+
+themeBtn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-bs-theme') === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-bs-theme', next);
+    renderThemeButton();
+    axios.post('/save_prefs', {theme: next});
+});
+
+langBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = langMenu.classList.toggle('d-none') === false;
+    langBtn.setAttribute('aria-expanded', open);
+});
+
+document.addEventListener('click', () => {
+    langMenu.classList.add('d-none');
+    langBtn.setAttribute('aria-expanded', false);
+});
+
+langMenu.querySelectorAll('button').forEach(item => {
+    item.addEventListener('click', () => {
+        const lang = item.dataset.lang;
+        langMenu.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === item));
+        document.getElementById('lang-label').textContent = item.textContent;
+        document.documentElement.lang = lang;
+        axios.post('/save_prefs', {language: lang});
+    });
+});
+
+renderThemeButton();
 
 function show2FAModal() {
     const modal = document.getElementById('twofa-modal');

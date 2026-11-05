@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="{{ language }}" data-bs-theme="{{ theme }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,16 +7,19 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='Icon.svg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='Icon-180.png') }}">
     <title>Apple Music Downloader - Settings</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='Theme.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/axios.min.js') }}"></script>
 </head>
 <body>
 
 <div class="settings-container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Settings</h2>
-        <button class="btn btn-outline-light" onclick="window.location.href='/'">← Back to Main</button>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" id="advanced-toggle" class="btn btn-outline-light" aria-pressed="{{ 'true' if advanced else 'false' }}"></button>
+            <button class="btn btn-outline-light" onclick="window.location.href='/'">← Back to Main</button>
+        </div>
     </div>
 
     <div id="loading" class="text-center">
@@ -76,6 +79,22 @@
                 <div class="col-md-4">
                     <label for="aac-save-folder" class="form-label">AAC Folder</label>
                     <input type="text" class="form-control" id="aac-save-folder" placeholder="AM-DL-AAC downloads">
+                </div>
+            </div>
+            <h6 class="mt-4">Conversion Folders</h6>
+            <small class="text-muted d-block mb-2">Saved for the upcoming conversion feature, the downloader does not use them yet.</small>
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="flac-save-folder" class="form-label">FLAC Folder</label>
+                    <input type="text" class="form-control" id="flac-save-folder" placeholder="Downloads/FLAC">
+                </div>
+                <div class="col-md-4">
+                    <label for="wav-save-folder" class="form-label">WAV Folder</label>
+                    <input type="text" class="form-control" id="wav-save-folder" placeholder="Downloads/WAV">
+                </div>
+                <div class="col-md-4">
+                    <label for="mp3-save-folder" class="form-label">MP3 Folder</label>
+                    <input type="text" class="form-control" id="mp3-save-folder" placeholder="Downloads/MP3">
                 </div>
             </div>
         </div>
@@ -304,7 +323,7 @@
         </div>
 
         
-        <div class="settings-section">
+        <div id="advanced-section" class="settings-section{{ '' if advanced else ' d-none' }}">
             <h4>Advanced Settings</h4>
             <div class="row">
                 <div class="col-md-3">
@@ -450,14 +469,35 @@ function saveConfig() {
     });
 }
 
+const advancedToggle = document.getElementById('advanced-toggle');
+const advancedSection = document.getElementById('advanced-section');
+
+function renderAdvancedToggle() {
+    const shown = !advancedSection.classList.contains('d-none');
+    advancedToggle.textContent = shown ? 'Advanced settings: On' : 'Advanced settings: Off';
+    advancedToggle.classList.toggle('active', shown);
+    advancedToggle.setAttribute('aria-pressed', shown);
+}
+
+advancedToggle.addEventListener('click', () => {
+    const shown = advancedSection.classList.toggle('d-none') === false;
+    renderAdvancedToggle();
+    axios.post('/save_prefs', {advanced_settings: shown});
+});
+
+renderAdvancedToggle();
+
 function showAlert(message, type) {
     const alertContainer = document.getElementById('alert-container');
     const alertElement = document.createElement('div');
     alertElement.className = `alert alert-${type} alert-dismissible fade show`;
-    alertElement.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+    const text = document.createElement('span');
+    text.textContent = message;
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close';
+    closeBtn.addEventListener('click', () => alertElement.remove());
+    alertElement.append(text, closeBtn);
     
     alertContainer.appendChild(alertElement);
     
@@ -466,7 +506,7 @@ function showAlert(message, type) {
         if (alertElement.parentNode) {
             alertElement.remove();
         }
-    }, 5000);
+    }, type === 'success' ? 3000 : 6000);
 }
 
 // Save button event listener
@@ -475,4 +515,3 @@ document.getElementById('save-btn').addEventListener('click', saveConfig);
 
 </body>
 </html>
-

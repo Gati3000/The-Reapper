@@ -1,4 +1,5 @@
 """Entry point: verify the installation, then start the web UI."""
+import logging
 import os
 import re
 import sys
@@ -81,7 +82,7 @@ def install_log_tee(user_dir=None):
 
 
 def main():
-    install_log_tee()
+    sink = install_log_tee()
     Start.setup_path()
     problems = Start.check()
     if problems:
@@ -93,7 +94,9 @@ def main():
         return 1
 
     Start.prepare_user_data()
-    from App import app
+    from App import app, Routes
+    Routes.set_file_sink(sink)
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
 # Its not save bo it works on LAN so its fine XD i dont want to create login 
 # but yeah mby in future ill change it so its saver or sum
     host = os.environ.get("REAPPER_HOST", "0.0.0.0")
