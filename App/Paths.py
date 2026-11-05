@@ -20,7 +20,7 @@ SYSTEM_BIN = Path("/usr/local/bin")
 
 WRAPPER_DIR = PROJECT_DIR / "wrapper"
 BENTO4_DIR = PROJECT_DIR / "bento4"
-VENDOR_DIR = APP_DIR / "Static" / "vendor"
+VENDOR_DIR = APP_DIR / "Static" / "Vendor"
 CREDENTIALS_FILE = USER_DIR / ".credentials"
 RIP_SCRIPT = LAUNCHER_DIR / "rip"
 

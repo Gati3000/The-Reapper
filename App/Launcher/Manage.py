@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+s#!/usr/bin/env python3
 import os
 import pwd
 import re
@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from App.Paths import LAUNCHER_DIR, PROJECT_DIR, USER_DIR, AMD_DIR, CONFIG_FILE, SYSTEM_BIN
 
 SAVE_FOLDER_KEYS = ("alac-save-folder", "atmos-save-folder", "aac-save-folder", "flac-save-folder", "wav-save-folder", "mp3-save-folder", "mv-save-folder")
