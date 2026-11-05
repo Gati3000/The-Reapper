@@ -29,3 +29,4 @@ config.yaml
 .ruff_cache/
 *.bak
 *.orig
+/App/Static/Vendor

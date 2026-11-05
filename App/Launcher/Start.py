@@ -24,7 +24,7 @@ from App.Paths import *
 
 USER_AGENT = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
 STATUS_OK, STATUS_MISSING, STATUS_OUTDATED, STATUS_NEWER = "ok", "missing", "outdated", "newer"
-
+VENDOR_FILES = {"bootstrap.min.css": "bootstrap_url", "axios.min.js": "axios_url"}
 MANIFEST_SECTION = "manifest"
 
 def _read_ini(path):
@@ -406,6 +406,20 @@ def install_downloader():
     prepare_user_data()
     build_downloader()
 
+def install_vendor():
+    VENDOR_DIR.mkdir(parents=True, exist_ok=True)
+    for name, key in VENDOR_FILES.items():
+        target = VENDOR_DIR / name
+        if target.is_file() and target.stat().st_size > 0:
+            continue
+        part = target.with_name(name + ".part")
+        try:
+            print(f"INFO: Downloading {name}")
+            download(MANIFEST[key], part)
+            part.replace(target)
+        finally:
+            part.unlink(missing_ok=True)
+
 @dataclass
 class Component:
     key: str
@@ -493,12 +507,18 @@ def _scan_amd_build():
     return Component("amd-build", "Downloader build", STATUS_NEWER, "binary missing or out of date (go run is used meanwhile)",
                      lambda: build_downloader(only_if_stale=True))
 
+def _scan_vendor():
+    missing = [n for n in VENDOR_FILES if not (VENDOR_DIR / n).is_file() or (VENDOR_DIR / n).stat().st_size == 0]
+    if missing:
+        return Component("vendor", "Web assets", STATUS_MISSING, "missing: " + ", ".join(missing), install_vendor)
+    return Component("vendor", "Web assets", STATUS_OK, "installed")
+
 def scan(online=True):
     """Inspect every component and return a list of Component objects."""
     parts = _missing_system_parts()
     system = (Component("system", "System packages", STATUS_MISSING, "missing: " + ", ".join(parts), install_system_packages)
               if parts else Component("system", "System packages", STATUS_OK, "installed"))
-    return [system, _scan_go(online), _scan_gpac(), _scan_bento4(), _scan_wrapper(online), _scan_downloader(online), _scan_amd_build(), _scan_rip()]
+    return [system, _scan_go(online), _scan_gpac(), _scan_bento4(), _scan_wrapper(online), _scan_downloader(online), _scan_amd_build(), _scan_vendor(), _scan_rip()]
 
 def check():
     """Offline check used by Main.py; returns the components that block startup."""
